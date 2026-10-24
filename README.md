@@ -1,5 +1,7 @@
 # ⚡ Afterglow
 
+Afterglow — a modern EV charging station discovery and session management platform.
+
 An EV charging-station finder and account-management web app. It is a full-stack,
 local-first project built entirely on free and open-source tools — no paid APIs,
 no paid map tiles, and no paid AI services.
