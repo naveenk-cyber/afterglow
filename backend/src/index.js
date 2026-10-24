@@ -12,9 +12,12 @@ function start() {
   // Set SEED_ON_START=false to disable.
   if (process.env.SEED_ON_START !== 'false') {
     seedIfEmpty(db);
-    // The demo account is a development convenience only. It is never created
-    // automatically in production.
-    if (!config.isProduction) seedDemoUser(db);
+    // The demo account stays a development convenience by default. A deployed
+    // demo that advertises it opts in explicitly with SEED_DEMO_USER=true.
+    const seedDemo = process.env.SEED_DEMO_USER
+      ? process.env.SEED_DEMO_USER === 'true'
+      : !config.isProduction;
+    if (seedDemo) seedDemoUser(db);
   }
 
   const app = createApp(db);
