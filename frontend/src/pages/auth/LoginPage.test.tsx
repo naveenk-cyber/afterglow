@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from '../../test/renderWithProviders';
 import LoginPage from './LoginPage';
-import { tokenStore } from '../../services/api';
+import { ApiError, authService, tokenStore } from '../../services/api';
 
 /** Resolve the request URL that fetch was asked for, in call order. */
 function calledUrls(): string[] {
@@ -15,7 +15,7 @@ function calledUrls(): string[] {
 function sessionResponse(user: { id: string; name: string; email: string } = {
   id: 'u1',
   name: 'Demo Driver',
-  email: 'demo@chargeease.test',
+  email: 'demo@afterglow.test',
 }) {
   return Promise.resolve({
     ok: true,
@@ -53,15 +53,20 @@ beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
   localStorage.clear();
+  tokenStore.clear();
+  // There is no cookie session to restore in these tests; the API rejects me().
+  vi.spyOn(authService, 'me').mockRejectedValue(
+    new ApiError('No session', 'UNAUTHORIZED', 401),
+  );
 });
 
 describe('LoginPage', () => {
-  it('shows the sign-in form with accessible fields', () => {
+  it('shows the sign-in form with accessible fields', async () => {
     renderLogin();
     expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
     expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /forgot password/i })).toBeInTheDocument();
   });
 
@@ -69,7 +74,7 @@ describe('LoginPage', () => {
     renderLogin();
     await userEvent.type(screen.getByLabelText(/email address/i), 'not-an-email');
     await userEvent.type(screen.getByLabelText(/^password$/i), 'Demo1234!');
-    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign in' }));
 
     expect(await screen.findByText('Please enter a valid email address')).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -79,9 +84,9 @@ describe('LoginPage', () => {
     fetchMock.mockImplementationOnce(() => sessionResponse());
     renderLogin();
 
-    await userEvent.type(screen.getByLabelText(/email address/i), 'demo@chargeease.test');
+    await userEvent.type(screen.getByLabelText(/email address/i), 'demo@afterglow.test');
     await userEvent.type(screen.getByLabelText(/^password$/i), 'Demo1234!');
-    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign in' }));
 
     expect(await screen.findByRole('heading', { name: 'Driver dashboard' })).toBeInTheDocument();
     expect(calledUrls()[0]).toContain('/auth/login');
@@ -94,9 +99,9 @@ describe('LoginPage', () => {
     );
     renderLogin();
 
-    await userEvent.type(screen.getByLabelText(/email address/i), 'demo@chargeease.test');
+    await userEvent.type(screen.getByLabelText(/email address/i), 'demo@afterglow.test');
     await userEvent.type(screen.getByLabelText(/^password$/i), 'wrong-password');
-    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign in' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Email or password is incorrect.');
     expect(tokenStore.get()).toBeNull();
@@ -107,7 +112,7 @@ describe('LoginPage', () => {
     renderLogin();
 
     await userEvent.click(screen.getByRole('button', { name: /use the demo account/i }));
-    expect(screen.getByText('demo@chargeease.test')).toBeInTheDocument();
+    expect(screen.getByText('demo@afterglow.test')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: /sign in with demo account/i }));
 
@@ -115,6 +120,6 @@ describe('LoginPage', () => {
     const body = JSON.parse(
       (fetchMock.mock.calls[0][1] as { body: string }).body,
     ) as { email: string; password: string };
-    expect(body).toMatchObject({ email: 'demo@chargeease.test', password: 'Demo1234!' });
+    expect(body).toMatchObject({ email: 'demo@afterglow.test', password: 'Demo1234!' });
   });
 });

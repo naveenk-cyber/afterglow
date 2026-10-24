@@ -192,6 +192,22 @@ function createBookingsRouter(db, { requireAuth }) {
     }),
   );
 
+  router.get(
+    '/sessions/:id',
+    requireAuth,
+    asyncHandler((req, res) => {
+      const session = db
+        .prepare('SELECT * FROM charging_sessions WHERE id = ?')
+        .get(req.params.id);
+      if (!session) throw ApiError.notFound('Session not found.');
+      if (session.user_id !== req.user.id) throw ApiError.forbidden();
+      res.json({
+        success: true,
+        data: { session: serializeSession(session, getStationFull(db, session.station_id)) },
+      });
+    }),
+  );
+
   const loadOwnedBooking = (req) => {
     const booking = db.prepare('SELECT * FROM bookings WHERE id = ?').get(req.params.id);
     if (!booking) throw ApiError.notFound('Booking not found.');

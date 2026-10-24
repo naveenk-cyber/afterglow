@@ -53,19 +53,21 @@ describe('request handling', () => {
     expect(error.status).toBe(422);
   });
 
-  it('clears the stored token when the session is rejected with 401', async () => {
+  it('clears the in-memory token when the session is rejected with 401', async () => {
     tokenStore.set('expired-token');
     fetchMock.mockResolvedValueOnce(jsonResponse(errorEnvelope('UNAUTHORIZED', 'Session expired'), 401));
     await authService.me().catch(() => undefined);
+    // The HttpOnly cookie is cleared by the API; the shim holds no JWT either.
+    expect(tokenStore.get()).toBeNull();
     expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBeNull();
   });
 
   it('reports an unreachable API as a network error (status 0)', async () => {
     fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
-    const error = (await stationService.getFilterMeta().catch((e) => e)) as ApiError;
+    const error = (await authService.me().catch((e) => e)) as ApiError;
     expect(error).toBeInstanceOf(ApiError);
     expect(error.isNetworkError).toBe(true);
-    expect(error.message).toContain('Could not reach the ChargeEase API');
+    expect(error.message).toContain('Could not reach the Afterglow API');
   });
 });
 
@@ -76,7 +78,7 @@ describe('auth service', () => {
         envelope({ user: { id: 'u1', name: 'Test' }, token: 'session-token', expiresAt: '2026-01-01' }),
       ),
     );
-    const result = await authService.login({ email: 'demo@chargeease.test', password: 'Demo1234!' });
+    const result = await authService.login({ email: 'demo@afterglow.test', password: 'Demo1234!' });
     expect(result.token).toBe('session-token');
     expect(tokenStore.get()).toBe('session-token');
   });

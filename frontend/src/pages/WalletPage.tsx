@@ -1,711 +1,665 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  CreditCard,
-  Plus,
-  ArrowUpRight,
+  AlertCircle,
   ArrowDownLeft,
-  DollarSign,
+  ArrowUpRight,
+  Battery,
   Calendar,
-  Filter,
+  CheckCircle2,
+  CreditCard,
   Download,
   Eye,
   EyeOff,
-  Zap,
-  Car,
-  Gift,
-  TrendingUp,
+  Plus,
+  Search,
+  ShieldCheck,
   Wallet,
-  Shield,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  Search
+  Zap,
 } from 'lucide-react';
+import PageHero from '../components/layout/PageHero';
+import Breadcrumbs from '../components/ui/Breadcrumbs';
+import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
+import ButtonLink from '../components/ui/ButtonLink';
+import EmptyState from '../components/ui/EmptyState';
+import { RowsSkeleton } from '../components/ui/Skeleton';
+import { useAuth } from '../hooks/useAuth';
+import { userService } from '../services/api';
+import type { WalletTransaction } from '../types';
+import { formatDate, formatPrice } from '../utils/helpers';
+
+const TABS = [
+  { id: 'overview', label: 'Overview', icon: Wallet },
+  { id: 'transactions', label: 'Transactions', icon: Calendar },
+  { id: 'methods', label: 'Payment methods', icon: CreditCard },
+  { id: 'settings', label: 'Settings', icon: ShieldCheck },
+] as const;
+
+type TabId = (typeof TABS)[number]['id'];
+
+const inputClass =
+  'h-11 w-full rounded-control border border-line bg-surface-muted px-3.5 text-sm text-ink ' +
+  'placeholder:text-ink-subtle transition-colors hover:border-line-strong focus:border-brand ' +
+  'focus:outline-none focus:ring-2 focus:ring-brand/25';
+
+const signedAmount = (transaction: WalletTransaction) =>
+  `${transaction.amount > 0 ? '+' : '−'}${formatPrice(Math.abs(transaction.amount), 'USD')}`;
+
+const TransactionRow: React.FC<{ transaction: WalletTransaction; showBalance?: boolean }> = ({
+  transaction,
+  showBalance = false,
+}) => {
+  const positive = transaction.amount > 0;
+  const Icon = positive ? ArrowUpRight : ArrowDownLeft;
+
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <span
+          className={`grid h-9 w-9 shrink-0 place-items-center rounded-control ${
+            positive ? 'bg-success-soft text-success-ink' : 'bg-surface-muted text-ink-muted'
+          }`}
+        >
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-ink">{transaction.description}</p>
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-ink-subtle">
+            <span>{formatDate(transaction.createdAt, 'datetime')}</span>
+            <span aria-hidden="true">·</span>
+            <span className="capitalize">{transaction.type}</span>
+            {showBalance && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>balance after {formatPrice(transaction.balanceAfter, 'USD')}</span>
+              </>
+            )}
+          </p>
+        </div>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className={`text-sm font-semibold ${positive ? 'text-success-ink' : 'text-ink'}`}>
+          {signedAmount(transaction)}
+        </p>
+        {transaction.simulated && (
+          <p className="mt-0.5 text-[0.7rem] font-medium uppercase tracking-[0.1em] text-warning-ink">
+            Simulated
+          </p>
+        )}
+      </div>
+    </li>
+  );
+};
 
 const WalletPage: React.FC = () => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [showBalance, setShowBalance] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
-  const [selectedPeriod, setSelectedPeriod] = useState('30d');
+  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [showTopup, setShowTopup] = useState(false);
+  const [topupAmount, setTopupAmount] = useState('25');
+  const [isToppingUp, setIsToppingUp] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
-  // Mock data - replace with actual API data
-  const walletData = {
-    balance: 247.85,
-    pendingBalance: 15.50,
-    totalSpent: 1847.32,
-    totalSaved: 234.67,
-    currency: 'USD',
-    lastUpdated: new Date(),
+  const walletQuery = useQuery({
+    queryKey: ['wallet'],
+    queryFn: () => userService.getWallet(),
+    enabled: Boolean(user),
+  });
+
+  const ledgerQuery = useQuery({
+    queryKey: ['wallet', 'transactions', page],
+    queryFn: () => userService.getTransactions(page, 20),
+    enabled: Boolean(user) && activeTab === 'transactions',
+  });
+
+  const analyticsQuery = useQuery({
+    queryKey: ['analytics', 30],
+    queryFn: () => userService.getAnalytics(30),
+    enabled: Boolean(user),
+  });
+
+  const wallet = walletQuery.data?.wallet;
+  const recent = walletQuery.data?.transactions ?? [];
+  const ledger = ledgerQuery.data?.transactions ?? recent;
+  const analytics = analyticsQuery.data;
+
+  const creditsAdded = useMemo(
+    () =>
+      recent
+        .filter((transaction) => transaction.type === 'topup')
+        .reduce((sum, transaction) => sum + transaction.amount, 0),
+    [recent],
+  );
+
+  const averageCostPerKwh = useMemo(() => {
+    if (!analytics || analytics.totalEnergyConsumed <= 0) return null;
+    return analytics.totalCost / analytics.totalEnergyConsumed;
+  }, [analytics]);
+
+  const filteredLedger = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return ledger.filter((transaction) => {
+      if (typeFilter && transaction.type !== typeFilter) return false;
+      if (!needle) return true;
+      return (
+        transaction.description.toLowerCase().includes(needle) ||
+        transaction.type.toLowerCase().includes(needle)
+      );
+    });
+  }, [ledger, search, typeFilter]);
+
+  const refreshWallet = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['wallet'] });
+    await queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    await queryClient.invalidateQueries({ queryKey: ['bookings'] });
   };
 
-  const paymentMethods = [
-    {
-      id: '1',
-      type: 'credit',
-      brand: 'Visa',
-      last4: '4242',
-      expiry: '12/25',
-      isDefault: true,
-      nickname: 'Personal Card'
-    },
-    {
-      id: '2',
-      type: 'credit',
-      brand: 'Mastercard',
-      last4: '8888',
-      expiry: '09/26',
-      isDefault: false,
-      nickname: 'Business Card'
-    },
-    {
-      id: '3',
-      type: 'bank',
-      brand: 'Bank Account',
-      last4: '1234',
-      bankName: 'Chase Bank',
-      isDefault: false,
-      nickname: 'Checking Account'
+  const submitTopup = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    setMessage('');
+    const amount = Number(topupAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError('Enter an amount greater than zero.');
+      return;
     }
-  ];
+    setIsToppingUp(true);
+    try {
+      await userService.topUp(Math.round(amount * 100));
+      await refreshWallet();
+      setShowTopup(false);
+      setMessage(
+        `${formatPrice(amount)} was added to your simulated wallet. No card was charged.`,
+      );
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'The top-up could not be saved.');
+    } finally {
+      setIsToppingUp(false);
+    }
+  };
 
-  const transactions = [
-    {
-      id: '1',
-      type: 'charge',
-      amount: -25.50,
-      description: 'Supercharger - Downtown SF',
-      location: 'San Francisco, CA',
-      date: new Date('2024-01-15T14:30:00'),
-      status: 'completed',
-      energy: '45.2 kWh',
-      duration: '35 min'
-    },
-    {
-      id: '2',
-      type: 'topup',
-      amount: 100.00,
-      description: 'Wallet Top-up',
-      paymentMethod: 'Visa •••• 4242',
-      date: new Date('2024-01-14T09:15:00'),
-      status: 'completed'
-    },
-    {
-      id: '3',
-      type: 'charge',
-      amount: -18.75,
-      description: 'EVgo Fast Charging',
-      location: 'Palo Alto, CA',
-      date: new Date('2024-01-13T16:45:00'),
-      status: 'completed',
-      energy: '32.1 kWh',
-      duration: '28 min'
-    },
-    {
-      id: '4',
-      type: 'refund',
-      amount: 12.25,
-      description: 'Refund - Charging session cancelled',
-      location: 'San Jose, CA',
-      date: new Date('2024-01-12T11:20:00'),
-      status: 'completed'
-    },
-    {
-      id: '5',
-      type: 'charge',
-      amount: -31.80,
-      description: 'ChargePoint Network',
-      location: 'Mountain View, CA',
-      date: new Date('2024-01-11T19:10:00'),
-      status: 'pending',
-      energy: '52.3 kWh',
-      duration: '42 min'
-    }
-  ];
+  const exportCsv = () => {
+    const rows = [
+      ['Date', 'Type', 'Description', 'Amount', 'Balance after', 'Simulated'],
+      ...ledger.map((transaction) => [
+        transaction.createdAt,
+        transaction.type,
+        transaction.description,
+        transaction.amount.toFixed(2),
+        transaction.balanceAfter.toFixed(2),
+        String(transaction.simulated),
+      ]),
+    ];
+    const csv = rows
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'afterglow-wallet-transactions.csv';
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (walletQuery.isPending) {
+    return (
+      <div className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6 lg:px-8">
+        <RowsSkeleton rows={6} />
+      </div>
+    );
+  }
+
+  if (walletQuery.isError || !wallet) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
+        <div
+          role="alert"
+          className="rounded-panel border border-error/30 bg-error-soft p-6 text-sm text-error-ink"
+        >
+          <p className="font-semibold">We could not load your wallet.</p>
+          <p className="mt-1">
+            {walletQuery.error instanceof Error
+              ? walletQuery.error.message
+              : 'The wallet service did not respond.'}
+          </p>
+          <Button className="mt-4" variant="secondary" onClick={() => walletQuery.refetch()}>
+            Try again
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const stats = [
     {
-      icon: DollarSign,
-      label: 'Total Spent',
-      value: `$${walletData.totalSpent.toFixed(2)}`,
-      change: '+12%',
-      color: 'from-red-500 to-pink-500'
-    },
-    {
-      icon: TrendingUp,
-      label: 'Money Saved',
-      value: `$${walletData.totalSaved.toFixed(2)}`,
-      change: '+18%',
-      color: 'from-green-500 to-emerald-500'
-    },
-    {
+      label: 'Charging spend · 30 days',
+      value: formatPrice(analytics?.totalCost ?? 0),
+      hint: 'From completed simulated sessions.',
       icon: Zap,
-      label: 'Avg. Cost/kWh',
-      value: '$0.32',
-      change: '-5%',
-      color: 'from-blue-500 to-cyan-500'
     },
     {
-      icon: Clock,
-      label: 'Avg. Session',
-      value: '38 min',
-      change: '+3%',
-      color: 'from-purple-500 to-pink-500'
-    }
-  ];
-
-  const getTransactionIcon = (type: string, status: string) => {
-    if (status === 'pending') return AlertCircle;
-    switch (type) {
-      case 'charge': return ArrowDownLeft;
-      case 'topup': return ArrowUpRight;
-      case 'refund': return ArrowUpRight;
-      default: return CheckCircle;
-    }
-  };
-
-  const getTransactionColor = (type: string, status: string) => {
-    if (status === 'pending') return 'text-yellow-400';
-    switch (type) {
-      case 'charge': return 'text-red-400';
-      case 'topup': case 'refund': return 'text-green-400';
-      default: return 'text-blue-400';
-    }
-  };
-
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: Wallet },
-    { id: 'transactions', label: 'Transactions', icon: Calendar },
-    { id: 'methods', label: 'Payment Methods', icon: CreditCard },
-    { id: 'settings', label: 'Settings', icon: Shield },
+      label: 'Energy · 30 days',
+      value: `${(analytics?.totalEnergyConsumed ?? 0).toLocaleString()} kWh`,
+      hint: 'Estimated, not metered.',
+      icon: Battery,
+    },
+    {
+      label: 'Credits added',
+      value: formatPrice(creditsAdded),
+      hint: 'Top-ups in the latest 20 ledger entries.',
+      icon: ArrowUpRight,
+    },
+    {
+      label: 'Average cost',
+      value: averageCostPerKwh === null ? '—' : `${formatPrice(averageCostPerKwh)}/kWh`,
+      hint: 'Spend divided by estimated energy.',
+      icon: Wallet,
+    },
   ];
 
   return (
-    <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-white mb-2">Wallet</h1>
-              <p className="text-gray-400">Manage your charging payments and balance</p>
-            </div>
-            <Button variant="gradient" leftIcon={<Plus className="w-4 h-4" />}>
-              Add Funds
-            </Button>
-          </div>
-        </motion.div>
+    <div>
+      <PageHero
+        eyebrow="Account"
+        title="Your simulated wallet"
+        description="The balance and ledger are stored with your Afterglow account. They hold no real money and no card details are collected."
+      />
 
-        {/* Balance Cards */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8"
-        >
-          {/* Main Balance */}
-          <div className="lg:col-span-2">
-            <div className="glass-card p-8 h-full">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
-                    <Wallet className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-white">Available Balance</h2>
-                    <p className="text-sm text-gray-400">Ready for charging</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowBalance(!showBalance)}
-                  className="p-2 text-gray-400 hover:text-white transition-colors"
-                >
-                  {showBalance ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
+      <div className="mx-auto max-w-[1200px] px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+        <Breadcrumbs items={[{ label: 'Home', to: '/' }, { label: 'Wallet' }]} />
+
+        {message && (
+          <p
+            role="status"
+            className="mt-4 flex items-start gap-2 rounded-card border border-success/30 bg-success-soft px-4 py-3 text-sm text-success-ink"
+          >
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            {message}
+          </p>
+        )}
+        {error && (
+          <p
+            role="alert"
+            className="mt-4 flex items-start gap-2 rounded-card border border-error/30 bg-error-soft px-4 py-3 text-sm text-error-ink"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            {error}
+          </p>
+        )}
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+          <section className="rounded-panel border border-line bg-surface p-5 shadow-card sm:p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="ev-label">Available balance</p>
+                <p className="ev-figure mt-2 text-[2.4rem] leading-none text-ink">
+                  {showBalance ? formatPrice(wallet.balance, wallet.currency) : '••••••'}
+                </p>
+                <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink-subtle">
+                  <Badge tone="warning" dot>
+                    Simulated funds
+                  </Badge>
+                  <span>
+                    Updated {formatDate(wallet.updatedAt, 'datetime')} · {wallet.currency}
+                  </span>
+                </p>
               </div>
-              
-              <div className="mb-4">
-                <div className="text-4xl font-bold text-white mb-2">
-                  {showBalance ? `$${walletData.balance.toFixed(2)}` : '••••••'}
-                </div>
-                {walletData.pendingBalance > 0 && (
-                  <div className="text-sm text-yellow-400">
-                    +${walletData.pendingBalance.toFixed(2)} pending
-                  </div>
+              <button
+                type="button"
+                onClick={() => setShowBalance((visible) => !visible)}
+                aria-label={showBalance ? 'Hide balance' : 'Show balance'}
+                className="rounded-control border border-line p-2 text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
+              >
+                {showBalance ? (
+                  <EyeOff className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Eye className="h-4 w-4" aria-hidden="true" />
                 )}
-              </div>
-
-              <div className="flex space-x-3">
-                <Button variant="gradient" size="sm" leftIcon={<Plus className="w-4 h-4" />}>
-                  Add Funds
-                </Button>
-                <Button variant="ghost" size="sm" leftIcon={<Download className="w-4 h-4" />}>
-                  Export
-                </Button>
-              </div>
+              </button>
             </div>
-          </div>
 
-          {/* Quick Actions */}
-          <div className="space-y-4">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full glass-card p-6 text-left"
-            >
-              <div className="flex items-center space-x-4">
-                <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
-                  <Car className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <p className="font-semibold text-white">Auto Top-up</p>
-                 <p className="text-sm text-gray-400">When balance &lt; $25</p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Button
+                onClick={() => {
+                  setShowTopup((open) => !open);
+                  setError('');
+                  setMessage('');
+                }}
+                leftIcon={<Plus className="h-4 w-4" />}
+              >
+                Add funds
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={exportCsv}
+                leftIcon={<Download className="h-4 w-4" />}
+              >
+                Export ledger
+              </Button>
+            </div>
 
+            {showTopup && (
+              <form
+                onSubmit={submitTopup}
+                className="mt-4 rounded-card border border-line bg-surface-muted p-4"
+              >
+                <h2 className="ev-card-title text-ink">Simulated top-up</h2>
+                <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+                  This credits the demo ledger directly. No payment gateway is contacted and no card
+                  is charged.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {[10, 25, 50, 100].map((amount) => (
+                    <button
+                      key={amount}
+                      type="button"
+                      onClick={() => setTopupAmount(String(amount))}
+                      aria-pressed={topupAmount === String(amount)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        topupAmount === String(amount)
+                          ? 'border-brand bg-brand-soft text-brand-soft-ink'
+                          : 'border-line text-ink-muted hover:border-line-strong hover:text-ink'
+                      }`}
+                    >
+                      ${amount}
+                    </button>
+                  ))}
                 </div>
-              </div>
-            </motion.button>
+                <div className="mt-3 flex flex-wrap items-end gap-2">
+                  <div className="min-w-[10rem] flex-1">
+                    <label
+                      htmlFor="topup-amount"
+                      className="mb-1.5 block text-sm font-medium text-ink"
+                    >
+                      Amount (USD)
+                    </label>
+                    <input
+                      id="topup-amount"
+                      inputMode="decimal"
+                      value={topupAmount}
+                      onChange={(event) => setTopupAmount(event.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+                  <Button type="submit" isLoading={isToppingUp}>
+                    Add simulated funds
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => setShowTopup(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            )}
+          </section>
 
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full glass-card p-6 text-left"
-            >
-              <div className="flex items-center space-x-4">
-                <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                  <Gift className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <p className="font-semibold text-white">Referral Bonus</p>
-                  <p className="text-sm text-gray-400">Invite friends</p>
-                </div>
-              </div>
-            </motion.button>
-          </div>
-        </motion.div>
+          <section className="rounded-panel border border-line bg-surface p-5 shadow-card sm:p-6">
+            <h2 className="ev-card-title text-ink">How this wallet works</h2>
+            <ul className="mt-3 space-y-2.5 text-sm leading-relaxed text-ink-muted">
+              <li className="flex gap-2">
+                <span
+                  className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand"
+                  aria-hidden="true"
+                />
+                Every balance and ledger entry belongs to your signed-in account.
+              </li>
+              <li className="flex gap-2">
+                <span
+                  className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand"
+                  aria-hidden="true"
+                />
+                Ending a simulated charging session debits the ledger; no real money moves.
+              </li>
+              <li className="flex gap-2">
+                <span
+                  className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand"
+                  aria-hidden="true"
+                />
+                Card numbers, CVVs and bank credentials are never requested or stored.
+              </li>
+            </ul>
+            <p className="mt-3 text-xs text-ink-subtle">
+              {walletQuery.data?.notice ??
+                'This is a simulated demo wallet. It holds no real money.'}
+            </p>
+          </section>
+        </div>
 
-        {/* Stats Grid */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
-        >
-          {stats.map((stat, index) => (
-            <motion.div
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {stats.map((stat) => (
+            <div
               key={stat.label}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2 + index * 0.1 }}
-              whileHover={{ scale: 1.02, y: -2 }}
-              className="glass-card p-6"
+              className="rounded-card border border-line bg-surface p-4 shadow-card"
             >
-              <div className="flex items-center justify-between mb-4">
-                <div className={`w-10 h-10 rounded-lg bg-gradient-to-r ${stat.color} p-2.5`}>
-                  <stat.icon className="w-5 h-5 text-white" />
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-xs font-medium text-ink-muted">{stat.label}</p>
+                <stat.icon className="h-4 w-4 text-brand" aria-hidden="true" />
+              </div>
+              <p className="ev-figure mt-2 text-xl text-ink">{stat.value}</p>
+              <p className="mt-1 text-xs leading-relaxed text-ink-subtle">{stat.hint}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 flex flex-wrap gap-1 rounded-control border border-line bg-surface p-1">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                setActiveTab(tab.id);
+                setError('');
+              }}
+              aria-pressed={activeTab === tab.id}
+              className={`flex items-center gap-1.5 rounded-[7px] px-3 py-2 text-[0.8125rem] font-medium transition-colors ${
+                activeTab === tab.id
+                  ? 'bg-surface-muted text-brand shadow-sm'
+                  : 'text-ink-muted hover:text-ink'
+              }`}
+            >
+              <tab.icon className="h-4 w-4" aria-hidden="true" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 rounded-panel border border-line bg-surface p-5 shadow-card sm:p-6">
+          {activeTab === 'overview' && (
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="ev-title text-ink">Recent activity</h2>
+                  <p className="mt-1 text-sm text-ink-muted">
+                    The latest entries in your stored simulated ledger.
+                  </p>
                 </div>
-                <div className={`flex items-center space-x-1 text-sm ${
-                  stat.change.startsWith('+') ? 'text-green-400' : 'text-red-400'
-                }`}>
-                  <TrendingUp className="w-4 h-4" />
-                  <span>{stat.change}</span>
+                <Button variant="ghost" size="sm" onClick={() => setActiveTab('transactions')}>
+                  View all transactions
+                </Button>
+              </div>
+
+              {recent.length === 0 ? (
+                <EmptyState
+                  className="mt-4"
+                  icon={Wallet}
+                  title="No wallet activity yet"
+                  description="Add simulated funds or complete a simulated charging session to create the first ledger entry."
+                  action={<Button onClick={() => setShowTopup(true)}>Add funds</Button>}
+                />
+              ) : (
+                <ul className="mt-4 divide-y divide-line rounded-card border border-line">
+                  {recent.slice(0, 5).map((transaction) => (
+                    <TransactionRow key={transaction.id} transaction={transaction} />
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'transactions' && (
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="ev-title text-ink">Transaction history</h2>
+                  <p className="mt-1 text-sm text-ink-muted">
+                    {ledgerQuery.data?.total ?? ledger.length} stored ledger entries.
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={exportCsv}
+                  leftIcon={<Download className="h-3.5 w-3.5" />}
+                >
+                  Export CSV
+                </Button>
+              </div>
+
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                <div className="relative flex-1">
+                  <Search
+                    className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle"
+                    aria-hidden="true"
+                  />
+                  <label htmlFor="transaction-search" className="sr-only">
+                    Search transactions
+                  </label>
+                  <input
+                    id="transaction-search"
+                    type="search"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search descriptions"
+                    className={`${inputClass} pl-10`}
+                  />
+                </div>
+                <div className="sm:w-48">
+                  <label htmlFor="transaction-type" className="sr-only">
+                    Filter by transaction type
+                  </label>
+                  <select
+                    id="transaction-type"
+                    value={typeFilter}
+                    onChange={(event) => setTypeFilter(event.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="">All types</option>
+                    <option value="charge">Charging</option>
+                    <option value="topup">Top-ups</option>
+                    <option value="refund">Refunds</option>
+                  </select>
                 </div>
               </div>
-              <div className="text-xl font-bold text-white mb-1">{stat.value}</div>
-              <div className="text-sm text-gray-400">{stat.label}</div>
-            </motion.div>
-          ))}
-        </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar Navigation */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3 }}
-            className="lg:col-span-1"
-          >
-            <div className="glass-card p-6">
-              <nav className="space-y-2">
-                {tabs.map((tab) => (
-                  <motion.button
-                    key={tab.id}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left transition-all duration-300 ${
-                      activeTab === tab.id
-                        ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-white border border-blue-500/30'
-                        : 'text-gray-400 hover:text-white hover:bg-white/5'
-                    }`}
+              {ledgerQuery.isPending ? (
+                <RowsSkeleton rows={4} className="mt-4" />
+              ) : ledgerQuery.isError ? (
+                <div
+                  role="alert"
+                  className="mt-4 rounded-control border border-error/30 bg-error-soft px-4 py-3 text-sm text-error-ink"
+                >
+                  <p>Could not load the ledger.</p>
+                  <button
+                    type="button"
+                    onClick={() => ledgerQuery.refetch()}
+                    className="mt-1 font-semibold underline"
                   >
-                    <tab.icon className="w-5 h-5" />
-                    <span className="font-medium">{tab.label}</span>
-                  </motion.button>
-                ))}
-              </nav>
-            </div>
-          </motion.div>
+                    Retry
+                  </button>
+                </div>
+              ) : filteredLedger.length === 0 ? (
+                <p className="mt-4 rounded-control border border-dashed border-line bg-surface-muted px-4 py-6 text-center text-sm text-ink-muted">
+                  No transactions match this filter.
+                </p>
+              ) : (
+                <ul className="mt-4 divide-y divide-line rounded-card border border-line">
+                  {filteredLedger.map((transaction) => (
+                    <TransactionRow key={transaction.id} transaction={transaction} showBalance />
+                  ))}
+                </ul>
+              )}
 
-          {/* Main Content */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4 }}
-            className="lg:col-span-3"
-          >
-            <div className="glass-card p-8">
-              {activeTab === 'overview' && (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-2xl font-bold text-white">Recent Activity</h2>
-                    <div className="flex space-x-2 items-center">
-  <div className="relative">
-    <label htmlFor="periodSelect" className="sr-only">
-      Filter by time period
-    </label>
-    <select
-      id="periodSelect"
-      value={selectedPeriod}
-      onChange={(e) => setSelectedPeriod(e.target.value)}
-      className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-    >
-      <option value="7d">Last 7 days</option>
-      <option value="30d">Last 30 days</option>
-      <option value="90d">Last 90 days</option>
-    </select>
-  </div>
-
-  <Button variant="ghost" size="sm" leftIcon={<Filter className="w-4 h-4" />}>
-    Filter
-  </Button>
-</div>
-
-                  </div>
-
-                  <div className="space-y-3">
-                    {transactions.slice(0, 5).map((transaction) => {
-                      const Icon = getTransactionIcon(transaction.type, transaction.status);
-                      const colorClass = getTransactionColor(transaction.type, transaction.status);
-                      
-                      return (
-                        <motion.div
-                          key={transaction.id}
-                          whileHover={{ scale: 1.01 }}
-                          className="flex items-center justify-between gap-3 min-w-0 p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
-                        >
-                          <div className="flex items-center space-x-4 min-w-0 flex-1">
-                            <div className={`w-10 h-10 shrink-0 rounded-lg bg-white/10 flex items-center justify-center ${colorClass}`}>
-                              <Icon className="w-5 h-5" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-medium text-white truncate">{transaction.description}</p>
-                              <div className="flex flex-wrap items-center gap-x-2 text-sm text-gray-400">
-                                <span>{transaction.date.toLocaleDateString()}</span>
-                                {transaction.location && (
-                                  <>
-                                    <span>•</span>
-                                    <span>{transaction.location}</span>
-                                  </>
-                                )}
-                                {transaction.energy && (
-                                  <>
-                                    <span>•</span>
-                                    <span>{transaction.energy}</span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className={`font-semibold ${
-                              transaction.amount > 0 ? 'text-green-400' : 'text-white'
-                            }`}>
-                              {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toFixed(2)}
-                            </p>
-                            <p className={`text-sm capitalize ${
-                              transaction.status === 'completed' ? 'text-green-400' :
-                              transaction.status === 'pending' ? 'text-yellow-400' : 'text-gray-400'
-                            }`}>
-                              {transaction.status}
-                            </p>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-
-                  <Button variant="ghost" fullWidth>
-                    View All Transactions
+              {ledgerQuery.data?.hasMore && (
+                <div className="mt-4 flex justify-center">
+                  <Button variant="ghost" onClick={() => setPage((current) => current + 1)}>
+                    Load more transactions
                   </Button>
                 </div>
               )}
-
-              {activeTab === 'transactions' && (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-2xl font-bold text-white">Transaction History</h2>
-                    <Button variant="ghost" leftIcon={<Download className="w-4 h-4" />}>
-                      Export CSV
-                    </Button>
-                  </div>
-
-                  {/* Search and Filters */}
-                 <div className="flex flex-col sm:flex-row gap-4">
-  {/* Search input with icon */}
-  <div className="relative flex-1">
-    <label htmlFor="transactionSearch" className="sr-only">
-      Search transactions
-    </label>
-    <Input
-      id="transactionSearch"
-      placeholder="Search transactions..."
-      className="pl-12"
-    />
-    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-  </div>
-
-  {/* Select: Transaction Type */}
-  <div>
-    <label htmlFor="typeFilter" className="sr-only">
-      Filter by transaction type
-    </label>
-    <select
-      id="typeFilter"
-      className="bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
-    >
-      <option value="">All Types</option>
-      <option value="charge">Charging</option>
-      <option value="topup">Top-ups</option>
-      <option value="refund">Refunds</option>
-    </select>
-  </div>
-
-  {/* Select: Transaction Status */}
-  <div>
-    <label htmlFor="statusFilter" className="sr-only">
-      Filter by status
-    </label>
-    <select
-      id="statusFilter"
-      className="bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
-    >
-      <option value="">All Status</option>
-      <option value="completed">Completed</option>
-      <option value="pending">Pending</option>
-      <option value="failed">Failed</option>
-    </select>
-  </div>
-</div>
-
-                  {/* Transactions List */}
-                  <div className="space-y-3">
-                    {transactions.map((transaction) => {
-                      const Icon = getTransactionIcon(transaction.type, transaction.status);
-                      const colorClass = getTransactionColor(transaction.type, transaction.status);
-                      
-                      return (
-                        <motion.div
-                          key={transaction.id}
-                          whileHover={{ scale: 1.01 }}
-                          className="flex items-center justify-between gap-3 min-w-0 p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
-                        >
-                          <div className="flex items-center space-x-4 min-w-0 flex-1">
-                            <div className={`w-10 h-10 shrink-0 rounded-lg bg-white/10 flex items-center justify-center ${colorClass}`}>
-                              <Icon className="w-5 h-5" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-medium text-white truncate">{transaction.description}</p>
-                              <div className="flex flex-wrap items-center gap-x-2 text-sm text-gray-400">
-                                <span>{transaction.date.toLocaleDateString()} at {transaction.date.toLocaleTimeString()}</span>
-                                {transaction.location && (
-                                  <>
-                                    <span>•</span>
-                                    <span>{transaction.location}</span>
-                                  </>
-                                )}
-                              </div>
-                              {(transaction.energy || transaction.duration) && (
-                                <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
-                                  {transaction.energy && <span>{transaction.energy}</span>}
-                                  {transaction.duration && (
-                                    <>
-                                      {transaction.energy && <span>•</span>}
-                                      <span>{transaction.duration}</span>
-                                    </>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className={`font-semibold ${
-                              transaction.amount > 0 ? 'text-green-400' : 'text-white'
-                            }`}>
-                              {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toFixed(2)}
-                            </p>
-                            <p className={`text-sm capitalize ${
-                              transaction.status === 'completed' ? 'text-green-400' :
-                              transaction.status === 'pending' ? 'text-yellow-400' : 'text-gray-400'
-                            }`}>
-                              {transaction.status}
-                            </p>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'methods' && (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-2xl font-bold text-white">Payment Methods</h2>
-                    <Button variant="gradient" leftIcon={<Plus className="w-4 h-4" />}>
-                      Add Payment Method
-                    </Button>
-                  </div>
-
-                  <div className="space-y-4">
-                    {paymentMethods.map((method) => (
-                      <motion.div
-                        key={method.id}
-                        whileHover={{ scale: 1.01 }}
-                        className="p-6 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-4">
-                            <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
-                              <CreditCard className="w-6 h-6 text-white" />
-                            </div>
-                            <div>
-                              <div className="flex items-center space-x-2">
-                                <p className="font-semibold text-white">
-                                  {method.type === 'bank' ? method.bankName : method.brand} •••• {method.last4}
-                                </p>
-                                {method.isDefault && (
-                                  <span className="px-2 py-1 text-xs bg-blue-500/20 text-blue-400 rounded-full">
-                                    Default
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-sm text-gray-400">
-                                {method.nickname}
-                                {method.expiry && ` • Expires ${method.expiry}`}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex space-x-2">
-                            <Button variant="ghost" size="sm">
-                              Edit
-                            </Button>
-                            {!method.isDefault && (
-                              <Button variant="ghost" size="sm">
-                                Remove
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'settings' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-white">Wallet Settings</h2>
-                  
-                  <div className="space-y-6">
-                    <div className="glass-card p-6">
-                      <h3 className="font-semibold text-white mb-4">Auto Top-up</h3>
-                      <div className="space-y-4">
-                        <label className="flex items-center justify-between">
-                          <div>
-                            <p className="text-white font-medium">Enable Auto Top-up</p>
-                            <p className="text-gray-400 text-sm">Automatically add funds when balance is low</p>
-                          </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" className="sr-only peer" defaultChecked />
-                            <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
-                          </label>
-                        </label>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                              Trigger Amount
-                            </label>
-                            <Input defaultValue="25.00" />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                              Top-up Amount
-                            </label>
-                            <Input defaultValue="100.00" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="glass-card p-6">
-                      <h3 className="font-semibold text-white mb-4">Notifications</h3>
-                      <div className="space-y-4">
-                        {[
-                          { label: 'Low balance alerts', description: 'Get notified when balance is low' },
-                          { label: 'Transaction confirmations', description: 'Receive confirmation for each transaction' },
-                          { label: 'Monthly statements', description: 'Get monthly spending summaries' },
-                          { label: 'Promotional offers', description: 'Receive exclusive wallet offers' },
-                        ].map((item, index) => (
-                          <label key={index} className="flex items-center justify-between">
-                            <div>
-                              <p className="text-white font-medium">{item.label}</p>
-                              <p className="text-gray-400 text-sm">{item.description}</p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input type="checkbox" className="sr-only peer" defaultChecked={index < 2} />
-                              <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
-                            </label>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="glass-card p-6">
-                      <h3 className="font-semibold text-white mb-4">Security</h3>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-white font-medium">Transaction PIN</p>
-                            <p className="text-gray-400 text-sm">Require PIN for transactions above $50</p>
-                          </div>
-                          <Button variant="ghost" size="sm">
-                            Set PIN
-                          </Button>
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-white font-medium">Spending Limits</p>
-                            <p className="text-gray-400 text-sm">Set daily and monthly spending limits</p>
-                          </div>
-                          <Button variant="ghost" size="sm">
-                            Configure
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+              {page > 1 && (
+                <div className="mt-2 flex justify-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPage((current) => current - 1)}
+                  >
+                    Previous page
+                  </Button>
                 </div>
               )}
             </div>
-          </motion.div>
+          )}
+
+          {activeTab === 'methods' && (
+            <div>
+              <h2 className="ev-title text-ink">Payment methods</h2>
+              <div className="mt-3 flex items-start gap-3 rounded-card border border-line bg-surface-muted p-4">
+                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
+                <div className="text-sm leading-relaxed text-ink-muted">
+                  <p className="font-semibold text-ink">No payment methods are stored</p>
+                  <p className="mt-1">
+                    Afterglow does not collect card numbers, CVVs or bank credentials. Top-ups are
+                    simulated ledger credits, so there is nothing to add or remove here.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button size="sm" onClick={() => setShowTopup(true)}>
+                      Add simulated funds
+                    </Button>
+                    <ButtonLink to="/membership" variant="ghost" size="sm">
+                      Compare membership plans
+                    </ButtonLink>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'settings' && (
+            <div>
+              <h2 className="ev-title text-ink">Wallet settings</h2>
+              <div className="mt-3 rounded-card border border-line bg-surface-muted p-4 text-sm leading-relaxed text-ink-muted">
+                <p className="font-semibold text-ink">No automatic charging or billing</p>
+                <p className="mt-1">
+                  Auto top-up, spending limits and transaction PINs are not implemented because no
+                  payment provider is connected. Notification preferences live with your profile.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <ButtonLink to="/profile" size="sm" variant="secondary">
+                    Open profile preferences
+                  </ButtonLink>
+                  <ButtonLink to="/membership" size="sm" variant="ghost">
+                    Membership details
+                  </ButtonLink>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
+
+        <p className="mt-4 text-xs leading-relaxed text-ink-subtle">
+          All wallet and charging figures are simulated. Need the full picture?{' '}
+          <Link to="/dashboard" className="font-medium text-ink underline underline-offset-2">
+            Open analytics
+          </Link>
+          .
+        </p>
       </div>
     </div>
   );

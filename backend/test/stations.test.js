@@ -80,6 +80,22 @@ test('sorting by price and rating works', async (t) => {
   assert.equal(byRating.status, 200);
 });
 
+test('sorting by availability prioritises the largest free share', async (t) => {
+  const client = await startTestServer();
+  t.after(() => client.close());
+
+  const response = await client.get('/stations?sort=availability&limit=50');
+  assert.equal(response.status, 200);
+
+  const shares = response.body.data.stations.map((station) => {
+    const { availableConnectors, totalConnectors } = station.availability;
+    return totalConnectors > 0 ? availableConnectors / totalConnectors : 0;
+  });
+  for (let i = 1; i < shares.length; i += 1) {
+    assert.ok(shares[i] <= shares[i - 1] + 1e-9, 'free connector share is non-increasing');
+  }
+});
+
 test('station detail returns connectors and 404 for unknown ids', async (t) => {
   const client = await startTestServer();
   t.after(() => client.close());

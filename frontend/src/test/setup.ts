@@ -1,6 +1,10 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, vi } from 'vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
+
+// The suite loads the 3D scene and Leaflet-adjacent modules; on slower machines
+// a 1s findBy/waitFor budget times out while the module graph is still warming.
+configure({ asyncUtilTimeout: 8000 });
 
 /**
  * Shared test environment setup.

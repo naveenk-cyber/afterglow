@@ -314,12 +314,15 @@ function createUsersRouter(db, { requireAuth }) {
   router.get(
     '/analytics',
     asyncHandler((req, res) => {
+      const days = v.oneOf(req.query.days ?? '30', 'days', ['7', '30', '90', '365'], {
+        fallback: '30',
+      });
       res.json({
         success: true,
         data: {
-          analytics: analyticsFor(db, req.user.id),
+          analytics: analyticsFor(db, req.user.id, { days: Number(days) }),
           notice:
-            'Figures are computed from your stored bookings and simulated charging sessions. Energy and cost values are estimates.',
+            'Figures are computed from your stored bookings and simulated charging sessions. Energy and cost values are estimates, not meter readings.',
         },
       });
     }),

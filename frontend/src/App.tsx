@@ -7,19 +7,23 @@ import MainLayout from './components/layout/MainLayout';
 // Pages
 import Home from './components/Home';
 import SearchPage from './pages/SearchPage';
+import ComparePage from './pages/ComparePage';
 import StationDetailsPage from './pages/StationDetailsPage';
 import BookingPage from './pages/BookingPage';
 import DashboardPage from './pages/DashboardPage';
+import SessionDetailPage from './pages/SessionDetailPage';
 import ProfilePage from './pages/ProfilePage';
 import WalletPage from './pages/WalletPage';
 import AboutPage from './pages/AboutPage';
-import ContactPage from './pages/AboutPage';
+import ContactPage from './pages/ContactPage';
 import MembershipPage from './pages/MembershipPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 // Auth pages
 import LoginPage from './pages/auth/LoginPage';
 import SignupPage from './pages/SignupPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 // Components
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -35,6 +39,7 @@ const App: React.FC = () => {
               {/* Public Routes */}
               <Route path="/" element={<Home />} />
               <Route path="/search" element={<SearchPage />} />
+              <Route path="/compare" element={<ComparePage />} />
               <Route path="/station/:id" element={<StationDetailsPage />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/contact" element={<ContactPage />} />
@@ -44,6 +49,7 @@ const App: React.FC = () => {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
 
               {/* Protected Routes */}
               <Route path="/dashboard" element={
@@ -61,6 +67,11 @@ const App: React.FC = () => {
                   <BookingPage />
                 </ProtectedRoute>
               } />
+              <Route path="/sessions/:id" element={
+                <ProtectedRoute>
+                  <SessionDetailPage />
+                </ProtectedRoute>
+              } />
               <Route path="/wallet" element={
                 <ProtectedRoute>
                   <WalletPage />
@@ -71,17 +82,7 @@ const App: React.FC = () => {
               <Route path="/map" element={<Navigate to="/search?view=map" replace />} />
               
               {/* 404 Route */}
-              <Route path="*" element={
-                <div className="min-h-[50vh] flex items-center justify-center">
-                  <div className="text-center">
-                    <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">404</h1>
-                    <p className="text-gray-600 dark:text-gray-400 mb-6">Page not found</p>
-                    <a href="/" className="text-orange-500 hover:text-orange-600 font-medium">
-                      Go back home
-                    </a>
-                  </div>
-                </div>
-              } />
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </MainLayout>
         </Router>

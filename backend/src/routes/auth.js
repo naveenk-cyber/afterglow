@@ -23,6 +23,33 @@ function assertPasswordStrength(password) {
   }
 }
 
+const SESSION_COOKIE = 'chargeease_session';
+
+/**
+ * Browser sessions use an HttpOnly, SameSite=Lax cookie so JavaScript (and
+ * therefore an XSS payload) cannot read the token. `rememberMe` controls
+ * whether the cookie survives a browser restart; server-side expiry is the
+ * same either way.
+ */
+function setSessionCookie(res, token, { remember = false } = {}) {
+  res.cookie(SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: config.isProduction,
+    path: '/',
+    ...(remember ? { maxAge: config.sessionTtlHours * 3600 * 1000 } : {}),
+  });
+}
+
+function clearSessionCookie(res) {
+  res.clearCookie(SESSION_COOKIE, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: config.isProduction,
+    path: '/',
+  });
+}
+
 function createSession(db, userId) {
   const sessionId = newId();
   const ttlSeconds = config.sessionTtlHours * 3600;
@@ -95,6 +122,7 @@ function createAuthRouter(db) {
 
       ensureWallet(db, id);
       const session = createSession(db, id);
+      setSessionCookie(res, session.token, { remember: body.rememberMe !== false });
       res.status(201).json({
         success: true,
         data: {
@@ -120,6 +148,7 @@ function createAuthRouter(db) {
         throw ApiError.unauthorized('Invalid email or password.');
       }
       const session = createSession(db, user.id);
+      setSessionCookie(res, session.token, { remember: body.rememberMe !== false });
       res.json({
         success: true,
         data: { user: publicUser(db, user), token: session.token, expiresAt: session.expiresAt },
@@ -132,6 +161,7 @@ function createAuthRouter(db) {
     auth,
     asyncHandler((req, res) => {
       db.prepare('UPDATE auth_sessions SET revoked = 1 WHERE id = ?').run(req.sessionId);
+      clearSessionCookie(res);
       res.json({ success: true, data: { message: 'Signed out.' } });
     }),
   );
@@ -215,4 +245,4 @@ function createAuthRouter(db) {
   return router;
 }
 
-module.exports = { createAuthRouter };
+module.exports = { createAuthRouter, SESSION_COOKIE };

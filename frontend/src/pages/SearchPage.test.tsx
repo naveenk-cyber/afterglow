@@ -16,7 +16,7 @@ vi.mock('../components/common/StationMap', () => ({
 }));
 
 const FILTER_META = {
-  operators: ['ChargeEase Demo Network', 'ChargePoint'],
+  operators: ['Afterglow Demo Network', 'ChargePoint'],
   connectorTypes: ['CCS', 'CHAdeMO', 'J1772'],
   chargingSpeeds: ['DC Fast', 'Level 2'],
   amenities: ['WiFi', 'Restrooms', 'Cafe'],
@@ -78,7 +78,7 @@ describe('SearchPage — results and announcements', () => {
     renderSearch();
 
     await screen.findByText('Downtown Market Street Hub');
-    await userEvent.type(screen.getByLabelText(/search by address/i), 'austin');
+    await userEvent.type(screen.getByLabelText('Where'), 'austin');
     await userEvent.click(screen.getByRole('button', { name: 'Search' }));
 
     await waitFor(() =>
@@ -90,8 +90,8 @@ describe('SearchPage — results and announcements', () => {
     searchStations().mockResolvedValue(makeSearchResult({ stations: [], total: 0 }));
     renderSearch();
 
-    expect(await screen.findByText('No stations found')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument();
+    expect(await screen.findByText('No stations match those filters')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Clear filters' }).length).toBeGreaterThan(0);
   });
 
   it('reports a failed search and offers a retry', async () => {
@@ -108,7 +108,7 @@ describe('SearchPage — results and announcements', () => {
     searchStations().mockResolvedValue(makeSearchResult({ source: 'demo' }));
     renderSearch();
 
-    expect(await screen.findByText(/Demo mode/)).toBeInTheDocument();
+    expect((await screen.findAllByText(/Demo mode/)).length).toBeGreaterThan(0);
     expect(screen.getByText(/These are not real stations/)).toBeInTheDocument();
   });
 });
@@ -200,7 +200,7 @@ describe('SearchPage — filters and sorting', () => {
 });
 
 describe('SearchPage — view mode and favourites', () => {
-  it('switches to the map view and replaces the result list', async () => {
+  it('switches to the map view and marks it pressed', async () => {
     renderSearch();
 
     await screen.findByText('Downtown Market Street Hub');
@@ -212,7 +212,7 @@ describe('SearchPage — view mode and favourites', () => {
     expect(screen.getByRole('button', { name: /Map/ })).toHaveAttribute('aria-pressed', 'true');
     // The ?view=map query is written through setSearchParams, which a MemoryRouter
     // keeps in memory rather than in window.location — the browser covers that URL.
-    expect(screen.queryByText('Downtown Market Street Hub')).toBeNull();
+    expect(screen.getByRole('button', { name: /List/ })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('offers sign-in instead of a dead favourite button for visitors', async () => {
@@ -243,6 +243,6 @@ describe('SearchPage — view mode and favourites', () => {
     );
 
     await waitFor(() => expect(addFavorite).toHaveBeenCalledWith('st-1'));
-    expect(await screen.findByText('Station added to your favourites.')).toBeInTheDocument();
+    expect(await screen.findByText(/Station added to your favourites\./)).toBeInTheDocument();
   });
 });

@@ -1,26 +1,28 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { LoginForm, SignupForm, User } from '../types';
-import { storage } from '../utils/helpers';
-
-/**
- * Demo authentication.
- *
- * There is no credential exchange in this build: signing in creates a local
- * session so the account areas are explorable. Nothing is sent anywhere and no
- * password is stored. The UI says so on the sign-in screen.
- */
-const AUTH_TOKEN_KEY = 'chargeease_auth_token';
-const USER_DATA_KEY = 'chargeease_user_data';
+import {
+  ApiError,
+  authService,
+  clearLegacySessionStorage,
+  setUnauthorizedHandler,
+  tokenStore,
+  userService,
+} from '../services/api';
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  /** True while the initial cookie session is being restored. */
   isLoading: boolean;
+  /** Set when the session could not be checked (for example, the API is down). */
+  sessionError: string | null;
   login: (credentials: LoginForm) => Promise<void>;
   signup: (userData: SignupForm) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  /** Persist a partial profile through the API and update local state. */
+  updateUser: (patch: Partial<User>) => Promise<User>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,76 +35,71 @@ export const useAuth = () => {
   return context;
 };
 
-function displayNameFrom(email: string): string {
-  const local = email.split('@')[0]?.replace(/[._-]+/g, ' ').trim();
-  if (!local) return 'Demo Driver';
-  return local
-    .split(' ')
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
-function createUser(overrides: Partial<User> & Pick<User, 'email' | 'name'>): User {
-  return {
-    id: `demo-${Date.now()}`,
-    phone: '',
-    avatar: undefined,
-    vehicles: [],
-    membershipLevel: 'Free',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    preferences: {
-      units: 'imperial',
-      language: 'en',
-      notifications: { email: true, push: false, sms: false },
-    },
-    ...overrides,
-  };
-}
-
-function readSession(): { user: User | null; token: string | null } {
-  return {
-    user: storage.get<User>(USER_DATA_KEY),
-    token: storage.get<string>(AUTH_TOKEN_KEY),
-  };
-}
-
 export const useAuthProvider = () => {
-  // Restore the session during the first render. Reading it in an effect made
-  // the protected routes render as signed-out for one frame, so a refresh on
-  // /dashboard (or /wallet) could bounce the driver to /login before the
-  // stored session was applied.
-  const [initialSession] = useState(readSession);
-  const [user, setUser] = useState<User | null>(
-    initialSession.user && initialSession.token ? initialSession.user : null,
-  );
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    Boolean(initialSession.user && initialSession.token),
-  );
-  const [isLoading, setIsLoading] = useState(false);
   const queryClient = useQueryClient();
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const mounted = useRef(true);
 
-  const persist = (nextUser: User) => {
-    storage.set(AUTH_TOKEN_KEY, `demo-session-${Date.now()}`);
-    storage.set(USER_DATA_KEY, nextUser);
-    setUser(nextUser);
-    setIsAuthenticated(true);
-  };
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const clearSession = useCallback(() => {
+    tokenStore.clear();
+    setUser(null);
+    queryClient.clear();
+  }, [queryClient]);
+
+  // A 401 from any request means the HttpOnly cookie and/or bearer token is no
+  // longer valid, so every consumer must drop the signed-in view at once.
+  useEffect(() => {
+    setUnauthorizedHandler(clearSession);
+    return () => setUnauthorizedHandler(null);
+  }, [clearSession]);
+
+  const restore = useCallback(async () => {
+    setIsLoading(true);
+    setSessionError(null);
+    try {
+      const restored = await authService.me();
+      if (mounted.current) setUser(restored);
+    } catch (error) {
+      if (!mounted.current) return;
+      setUser(null);
+      // A network failure is not proof the session is invalid. Keep the token
+      // (the cookie is untouched anyway) and surface the reason so the sign-in
+      // page can explain why the account area sent the driver back.
+      if (error instanceof ApiError && error.isNetworkError) {
+        setSessionError(error.message);
+      } else {
+        // The API rejected the session (expired, revoked or malformed), so the
+        // bearer shim must not outlive it. The HttpOnly cookie is cleared by the
+        // API's Set-Cookie response.
+        tokenStore.clear();
+      }
+    } finally {
+      if (mounted.current) setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Remove credentials written by the previous local-only demo build before
+    // checking the real server session.
+    clearLegacySessionStorage();
+    void restore();
+  }, [restore]);
 
   const login = async (credentials: LoginForm) => {
     setIsLoading(true);
+    setSessionError(null);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      persist(
-        createUser({
-          email: credentials.email,
-          name: displayNameFrom(credentials.email),
-          membershipLevel: 'Free',
-        }),
-      );
-    } catch {
-      throw new Error('We could not start a demo session. Try again.');
+      const result = await authService.login(credentials);
+      setUser(result.user);
     } finally {
       setIsLoading(false);
     }
@@ -110,32 +107,10 @@ export const useAuthProvider = () => {
 
   const signup = async (userData: SignupForm) => {
     setIsLoading(true);
+    setSessionError(null);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 700));
-      const name =
-        userData.name?.trim() ||
-        [userData.firstName, userData.lastName].filter(Boolean).join(' ').trim() ||
-        displayNameFrom(userData.email);
-
-      persist(
-        createUser({
-          email: userData.email,
-          name: name || 'Demo Driver',
-          phone: userData.phone || '',
-          membershipLevel: 'Free',
-          preferences: {
-            units: 'imperial',
-            language: 'en',
-            notifications: {
-              email: true,
-              push: Boolean(userData.newsletter),
-              sms: false,
-            },
-          },
-        }),
-      );
-    } catch {
-      throw new Error('We could not create the demo account. Try again.');
+      const result = await authService.signup(userData);
+      setUser(result.user);
     } finally {
       setIsLoading(false);
     }
@@ -144,31 +119,34 @@ export const useAuthProvider = () => {
   const logout = async () => {
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      storage.remove(AUTH_TOKEN_KEY);
-      storage.remove(USER_DATA_KEY);
-      setUser(null);
-      setIsAuthenticated(false);
-      queryClient.clear();
+      await authService.logout();
     } finally {
+      clearSession();
       setIsLoading(false);
     }
   };
 
   const refreshUser = async () => {
-    if (!isAuthenticated) return;
-    const currentUser = storage.get<User>(USER_DATA_KEY);
-    if (currentUser) setUser(currentUser);
+    const current = await authService.me();
+    setUser(current);
+  };
+
+  const updateUser = async (patch: Partial<User>): Promise<User> => {
+    const updated = await userService.updateProfile(patch);
+    setUser(updated);
+    return updated;
   };
 
   return {
     user,
-    isAuthenticated,
+    isAuthenticated: Boolean(user),
     isLoading,
+    sessionError,
     login,
     signup,
     logout,
     refreshUser,
+    updateUser,
   };
 };
 

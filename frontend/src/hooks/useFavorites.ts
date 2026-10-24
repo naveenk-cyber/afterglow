@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { ChargingStation } from '../types';
+import { stationService } from '../services/api';
+import { useAuth } from './useAuth';
 
 const STORAGE_KEY = 'chargeease_favorites';
 const CHANGE_EVENT = 'chargeease:favorites-changed';
 
-function readFavorites(): string[] {
+function readLocalFavorites(): string[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -14,7 +18,7 @@ function readFavorites(): string[] {
   }
 }
 
-function writeFavorites(ids: string[]) {
+function writeLocalFavorites(ids: string[]) {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
   } catch {
@@ -24,16 +28,17 @@ function writeFavorites(ids: string[]) {
 }
 
 /**
- * Favourites are stored in this browser rather than server-side: the demo
- * build has no persistent user store behind it. Every mounted consumer listens
- * for the same change event, so saving a station in the finder immediately
- * updates the details page and vice versa.
+ * Saved stations for signed-in drivers come from `GET /users/favorites`, so
+ * they follow the account across devices. Guests keep a browser-only list,
+ * which is clearly the lesser mode: saving a station asks them to sign in.
  */
 export function useFavorites() {
-  const [favorites, setFavorites] = useState<string[]>(readFavorites);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [localFavorites, setLocalFavorites] = useState<string[]>(readLocalFavorites);
 
   useEffect(() => {
-    const sync = () => setFavorites(readFavorites());
+    const sync = () => setLocalFavorites(readLocalFavorites());
     window.addEventListener(CHANGE_EVENT, sync);
     window.addEventListener('storage', sync);
     return () => {
@@ -42,21 +47,74 @@ export function useFavorites() {
     };
   }, []);
 
+  const favoritesQuery = useQuery({
+    queryKey: ['favorites'],
+    queryFn: () => stationService.getFavorites(),
+    enabled: Boolean(user),
+    staleTime: 60_000,
+  });
+
+  const stations: ChargingStation[] = user ? favoritesQuery.data ?? [] : [];
+  const favorites = user ? stations.map((station) => station.id) : localFavorites;
+
   const isFavorite = useCallback((id: string) => favorites.includes(id), [favorites]);
 
-  const toggleFavorite = useCallback((id: string) => {
-    const current = readFavorites();
-    const next = current.includes(id) ? current.filter((item) => item !== id) : [id, ...current];
-    writeFavorites(next);
-    setFavorites(next);
-    return next.includes(id);
-  }, []);
+  const toggleFavorite = useCallback(
+    async (id: string) => {
+      const currentlySaved = favorites.includes(id);
 
-  const removeFavorite = useCallback((id: string) => {
-    const next = readFavorites().filter((item) => item !== id);
-    writeFavorites(next);
-    setFavorites(next);
-  }, []);
+      if (!user) {
+        const next = currentlySaved
+          ? localFavorites.filter((item) => item !== id)
+          : [id, ...localFavorites];
+        writeLocalFavorites(next);
+        setLocalFavorites(next);
+        return !currentlySaved;
+      }
 
-  return { favorites, isFavorite, toggleFavorite, removeFavorite };
+      const previous = favoritesQuery.data ?? [];
+      const optimistic = currentlySaved
+        ? previous.filter((station) => station.id !== id)
+        : previous;
+      queryClient.setQueryData(['favorites'], optimistic);
+
+      try {
+        if (currentlySaved) {
+          await stationService.removeFavorite(id);
+        } else {
+          await stationService.addFavorite(id);
+        }
+        await queryClient.invalidateQueries({ queryKey: ['favorites'] });
+        return !currentlySaved;
+      } catch (error) {
+        queryClient.setQueryData(['favorites'], previous);
+        throw error;
+      }
+    },
+    [favorites, localFavorites, user, favoritesQuery.data, queryClient],
+  );
+
+  const removeFavorite = useCallback(
+    async (id: string) => {
+      if (user) {
+        await stationService.removeFavorite(id);
+        await queryClient.invalidateQueries({ queryKey: ['favorites'] });
+        return;
+      }
+      const next = localFavorites.filter((item) => item !== id);
+      writeLocalFavorites(next);
+      setLocalFavorites(next);
+    },
+    [localFavorites, queryClient, user],
+  );
+
+  return {
+    favorites,
+    stations,
+    isLoading: user ? favoritesQuery.isPending : false,
+    error: user ? favoritesQuery.error : null,
+    isFavorite,
+    toggleFavorite,
+    removeFavorite,
+  };
 }

@@ -64,14 +64,20 @@ const PopularDestinations: React.FC = () => {
               <Link
                 key={city}
                 to={`/search?q=${encodeURIComponent(city)}`}
-                className="group relative overflow-hidden rounded-card border border-line bg-surface shadow-card transition-colors hover:border-brand/45"
+                className="group relative flex h-40 flex-col justify-end overflow-hidden rounded-card border border-line bg-surface-muted shadow-card transition-colors hover:border-brand/45"
               >
+                <span
+                  className="pointer-events-none absolute inset-0 grid place-items-center"
+                  aria-hidden="true"
+                >
+                  <MapPin className="h-7 w-7 text-line-strong" strokeWidth={1.25} />
+                </span>
                 <img
                   src={photo.src}
                   alt={photo.alt}
                   loading="lazy"
                   decoding="async"
-                  className="h-40 w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
                   onError={(event) => {
                     event.currentTarget.style.visibility = 'hidden';
                   }}

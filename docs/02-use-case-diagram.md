@@ -19,7 +19,7 @@ graph LR
   geo(["Browser geolocation"])
   osm(["OpenStreetMap tiles"])
 
-  subgraph ChargeEase["ChargeEase"]
+  subgraph Afterglow["Afterglow"]
     uc01(["UC-01 Browse home page"])
     uc02(["UC-02 Create account"])
     uc03(["UC-03 Sign in"])

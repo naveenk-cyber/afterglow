@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Crosshair, Search, Zap } from 'lucide-react';
 import Button from '../ui/Button';
+import Checkbox from '../ui/Checkbox';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import type { ChargingSpeed, FilterMeta, SearchFilters } from '../../types';
 
@@ -173,15 +174,9 @@ const SearchBar: React.FC<SearchBarProps> = ({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-ink-muted">
-          <input
-            type="checkbox"
-            checked={availableOnly}
-            onChange={(event) => setAvailableOnly(event.target.checked)}
-            className="h-4 w-4 rounded border-line-strong bg-surface-muted accent-[color:var(--color-brand)]"
-          />
+        <Checkbox checked={availableOnly} onChange={setAvailableOnly}>
           Available connectors only
-        </label>
+        </Checkbox>
 
         <p className="text-xs text-ink-subtle" role="status">
           {latitude != null && longitude != null

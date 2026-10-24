@@ -8,6 +8,8 @@ const {
   serializeStation,
   serializeVehicle,
   serializeUser,
+  serializeBooking,
+  serializeSession,
 } = require('./serializers');
 
 const nowIso = () => new Date().toISOString();
@@ -123,17 +125,62 @@ function applyWalletTransaction(db, userId, { type, amountMinor, description, re
   });
 }
 
-/** Per-user charging statistics computed from stored sessions + bookings. */
-function analyticsFor(db, userId) {
-  const totals = db
+const DAY_MS = 24 * 60 * 60 * 1000;
+const ANALYTICS_DAYS = new Set([7, 30, 90, 365]);
+
+/**
+ * Per-user charging statistics computed from stored sessions + bookings.
+ *
+ * Date ranges are evaluated in UTC against the stored ISO timestamps. Charts
+ * receive daily buckets so the client can bucket them for narrow screens
+ * without inventing records. Nothing here is hardcoded.
+ */
+function analyticsFor(db, userId, { days = 30, now = Date.now() } = {}) {
+  const rangeDays = ANALYTICS_DAYS.has(Number(days)) ? Number(days) : 30;
+  const rangeEnd = new Date(now).toISOString();
+  const rangeStart = new Date(now - rangeDays * DAY_MS).toISOString();
+  const previousStart = new Date(now - rangeDays * 2 * DAY_MS).toISOString();
+  const previousEnd = rangeStart;
+
+  const summarise = (from, to) =>
+    db
+      .prepare(
+        `SELECT
+           COUNT(*) AS sessions,
+           COALESCE(SUM(energy_kwh), 0) AS energy,
+           COALESCE(SUM(cost), 0) AS cost,
+           COALESCE(AVG((julianday(ended_at) - julianday(started_at)) * 1440), 0) AS avg_minutes
+         FROM charging_sessions
+         WHERE user_id = ? AND ended_at IS NOT NULL
+           AND started_at >= ? AND started_at < ?`,
+      )
+      .get(userId, from, to);
+
+  const totals = summarise(rangeStart, rangeEnd);
+  const previous = summarise(previousStart, previousEnd);
+
+  const daily = db
     .prepare(
-      `SELECT
-         COUNT(*) AS total_sessions,
-         COALESCE(SUM(energy_kwh), 0) AS total_energy,
-         COALESCE(SUM(cost), 0) AS total_cost
-       FROM charging_sessions WHERE user_id = ? AND ended_at IS NOT NULL`,
+      `SELECT substr(started_at, 1, 10) AS date,
+              COUNT(*) AS sessions,
+              COALESCE(SUM(energy_kwh), 0) AS energy,
+              COALESCE(SUM(cost), 0) AS cost
+       FROM charging_sessions
+       WHERE user_id = ? AND ended_at IS NOT NULL
+         AND started_at >= ? AND started_at < ?
+       GROUP BY date ORDER BY date ASC`,
     )
-    .get(userId);
+    .all(userId, rangeStart, rangeEnd);
+
+  const connectorUsage = db
+    .prepare(
+      `SELECT connector_type AS label, COUNT(*) AS value
+       FROM charging_sessions
+       WHERE user_id = ? AND ended_at IS NOT NULL
+         AND started_at >= ? AND started_at < ?
+       GROUP BY connector_type ORDER BY value DESC`,
+    )
+    .all(userId, rangeStart, rangeEnd);
 
   const monthly = db
     .prepare(
@@ -142,10 +189,25 @@ function analyticsFor(db, userId) {
               COALESCE(SUM(energy_kwh), 0) AS energy,
               COALESCE(SUM(cost), 0) AS cost
        FROM charging_sessions
-       WHERE user_id = ? AND started_at >= ?
+       WHERE user_id = ? AND ended_at IS NOT NULL AND started_at >= ?
        GROUP BY month ORDER BY month ASC`,
     )
-    .all(userId, new Date(Date.now() - 365 * 24 * 3600 * 1000).toISOString());
+    .all(userId, new Date(now - 365 * DAY_MS).toISOString());
+
+  const recentRows = db
+    .prepare(
+      `SELECT * FROM charging_sessions WHERE user_id = ?
+       ORDER BY started_at DESC LIMIT 6`,
+    )
+    .all(userId);
+
+  const upcomingRows = db
+    .prepare(
+      `SELECT * FROM bookings
+       WHERE user_id = ? AND status IN ('pending', 'confirmed') AND start_time >= ?
+       ORDER BY start_time ASC LIMIT 5`,
+    )
+    .all(userId, new Date(now).toISOString());
 
   const favorites = db
     .prepare(
@@ -157,22 +219,49 @@ function analyticsFor(db, userId) {
   const favoriteIds = favorites.map((row) => row.id);
   const favoriteConnectors = connectorsByStation(db, favoriteIds);
   const favoriteRatings = ratingAggregates(db, favoriteIds);
-
   const bookingsCount = db
     .prepare("SELECT COUNT(*) AS c FROM bookings WHERE user_id = ? AND status != 'cancelled'")
     .get(userId);
 
   return {
-    totalSessions: totals.total_sessions,
-    totalEnergyConsumed: Math.round(totals.total_energy * 10) / 10,
-    totalCost: Math.round(totals.total_cost * 100) / 100,
+    rangeDays,
+    rangeStart,
+    rangeEnd,
+    totalSessions: totals.sessions,
+    totalEnergyConsumed: Math.round(totals.energy * 10) / 10,
+    totalCost: Math.round(totals.cost * 100) / 100,
+    averageDurationMinutes: Math.round(totals.avg_minutes * 10) / 10,
+    sessionsPerWeek: Math.round((totals.sessions / rangeDays) * 7 * 10) / 10,
+    previousPeriod: {
+      totalSessions: previous.sessions,
+      totalEnergyConsumed: Math.round(previous.energy * 10) / 10,
+      totalCost: Math.round(previous.cost * 100) / 100,
+      averageDurationMinutes: Math.round(previous.avg_minutes * 10) / 10,
+      sessionsPerWeek: Math.round((previous.sessions / rangeDays) * 7 * 10) / 10,
+    },
     totalBookings: bookingsCount.c,
+    dailyUsage: daily.map((row) => ({
+      date: row.date,
+      sessions: row.sessions,
+      energyConsumed: Math.round(row.energy * 10) / 10,
+      cost: Math.round(row.cost * 100) / 100,
+    })),
+    connectorUsage: connectorUsage.map((row) => ({
+      label: row.label,
+      value: row.value,
+    })),
     monthlyUsage: monthly.map((row) => ({
       month: row.month,
       sessions: row.sessions,
       energyConsumed: Math.round(row.energy * 10) / 10,
       cost: Math.round(row.cost * 100) / 100,
     })),
+    recentSessions: recentRows.map((row) =>
+      serializeSession(row, getStationFull(db, row.station_id)),
+    ),
+    upcomingBookings: upcomingRows.map((row) =>
+      serializeBooking(row, getStationFull(db, row.station_id)),
+    ),
     favoriteStations: favorites.map((row) =>
       serializeStation(row, favoriteConnectors.get(row.id) || [], favoriteRatings.get(row.id) || null),
     ),

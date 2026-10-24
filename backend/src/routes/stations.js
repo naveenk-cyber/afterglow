@@ -30,13 +30,22 @@ function buildOrderClause(sort) {
       return 'max_power DESC';
     case 'name':
       return 's.name ASC';
+    case 'availability':
+      // Share of connectors currently reported free, stations with more
+      // free hardware first. Derived from the same connector rows the station
+      // payload uses, so the order cannot drift from the displayed counts.
+      return `(
+        SELECT COALESCE(SUM(MIN(c.available, c.count)), 0) * 1.0
+               / NULLIF(SUM(c.count), 0)
+        FROM connectors c WHERE c.station_id = s.id
+      ) DESC, s.name ASC`;
     case 'distance':
     default:
       return 's.name ASC';
   }
 }
 
-const SORTS = ['distance', 'price', 'rating', 'speed', 'name'];
+const SORTS = ['distance', 'price', 'rating', 'speed', 'availability', 'name'];
 
 function createStationsRouter(db, { requireAuth }) {
   const router = express.Router();

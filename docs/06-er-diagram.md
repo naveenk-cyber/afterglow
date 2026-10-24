@@ -223,7 +223,7 @@ Plus the primary keys above, `users.email` (UNIQUE), `wallets.user_id` (UNIQUE) 
 
 * 14 sample stations with connectors, amenities, opening hours and prices
   (`backend/src/seed-data.js`), spread across the San Francisco Bay Area and Austin.
-* Demo account `demo@chargeease.test` / `Demo1234!` with one vehicle
+* Demo account `demo@afterglow.test` / `Demo1234!` with one vehicle
   (2023 Demo Volt EV, 68 kWh, CCS + J1772, 410-range) and a simulated opening
   balance of **$50.00** (`startingBalanceMinor = 5000`).
 * The seeder is idempotent: it upserts by id, so running it twice does not create

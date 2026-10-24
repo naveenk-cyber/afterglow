@@ -47,6 +47,7 @@ describe('ProfilePage — validation and saved data', () => {
     const createVehicle = vi.spyOn(userService, 'createVehicle');
     renderWithProviders(<ProfilePage />, { withAuth: true });
 
+    await userEvent.click(await screen.findByRole('button', { name: 'Vehicles' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Add vehicle' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(

@@ -1,6 +1,6 @@
 # 01 — System Requirements Specification (SRS)
 
-**Project:** ChargeEase — EV charging-station finder
+**Project:** Afterglow — EV charging-station finder
 **Version:** 1.0 (matches `backend/package.json` and `frontend/package.json`)
 **Type:** Academic CASE project — a runnable, self-hostable demonstration, not a
 commercial service.
@@ -9,7 +9,7 @@ commercial service.
 
 ## 1. Purpose and scope
 
-ChargeEase lets a driver find charging stations, inspect connectors and prices,
+Afterglow lets a driver find charging stations, inspect connectors and prices,
 reserve a time window on a specific connector, run a simulated charging session,
 and track the resulting spend. It also gives each signed-in user a profile,
 saved vehicles, favourites, reviews, a dashboard and a wallet.
@@ -42,7 +42,7 @@ analytics, membership comparison, CASE documentation and automated tests.
 | --- | --- | --- |
 | **Visitor** | Unauthenticated user | `/`, `/search`, `/station/:id`, `/membership`, `/about`, `/login`, `/signup` |
 | **Registered driver** | Authenticated user (created via sign-up or the seeded demo account) | everything above plus `/dashboard`, `/bookings`, `/wallet`, `/profile` |
-| **Demo account holder** | The seeded `demo@chargeease.test` account with sample bookings and a simulated balance | same as driver |
+| **Demo account holder** | The seeded `demo@afterglow.test` account with sample bookings and a simulated balance | same as driver |
 | **Operator / network** | External charging network that would confirm availability | *not integrated* — represented by labelled sample data |
 | **Developer / demonstrator** | Runs migrations, seeds data, executes the test suites | `npm run seed`, `npm test` |
 

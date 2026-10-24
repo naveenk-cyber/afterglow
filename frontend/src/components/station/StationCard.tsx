@@ -125,13 +125,21 @@ const StationCard: React.FC<StationCardProps> = ({
       {/* Illustrative photo, cropped to a consistent 16:10 frame. Lazy-loaded
           and self-hiding on failure so a missing asset degrades to the plain
           card rather than a broken-image icon. */}
-      <div className="relative -mx-px -mt-px">
+      <div className="relative -mx-px -mt-px bg-surface-muted">
+        {/* The frame keeps its 16:10 footprint while the photo loads (or if it
+            fails), so a card never collapses into a black gap. */}
+        <span
+          className="pointer-events-none absolute inset-0 grid place-items-center"
+          aria-hidden="true"
+        >
+          <Zap className="h-8 w-8 text-line-strong" strokeWidth={1.25} />
+        </span>
         <img
           src={photo.src}
           alt={photo.alt}
           loading="lazy"
           decoding="async"
-          className="w-full aspect-[16/10] object-cover"
+          className="relative w-full aspect-[16/10] object-cover"
           onError={(event) => {
             event.currentTarget.style.display = 'none';
           }}

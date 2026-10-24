@@ -1,8 +1,9 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPin } from 'lucide-react';
+import { MapPin, X } from 'lucide-react';
 import { ChargingStation } from '../../types';
 import { formatPrice } from '../../utils/helpers';
 
@@ -49,14 +50,60 @@ function Recenter({ center }: { center: [number, number] }) {
   return null;
 }
 
+/**
+ * Opening view when the caller supplies no centre.
+ *
+ * Fitting every result across several cities zooms out to a multi-state map
+ * where markers collapse into dots. Prefer the city with the most results so
+ * the first view is useful, and let the driver zoom out or set a location to
+ * see the rest.
+ */
+function InitialView({ stations, active }: { stations: ChargingStation[]; active: boolean }) {
+  const map = useMap();
+  const key = stations.map((station) => station.id).join(',');
+
+  useEffect(() => {
+    if (!active || stations.length === 0) return;
+
+    const groups = new Map<string, ChargingStation[]>();
+    for (const station of stations) {
+      if (!Number.isFinite(station.latitude) || !Number.isFinite(station.longitude)) continue;
+      const groupKey = station.city || station.address;
+      groups.set(groupKey, [...(groups.get(groupKey) ?? []), station]);
+    }
+
+    const densest = [...groups.values()].sort((a, b) => b.length - a.length)[0];
+    if (!densest || densest.length === 0) return;
+
+    if (densest.length === 1) {
+      map.setView([densest[0].latitude, densest[0].longitude], 13, { animate: false });
+      return;
+    }
+
+    const { lat, lng } = densest.reduce(
+      (total, station) => ({
+        lat: total.lat + station.latitude,
+        lng: total.lng + station.longitude,
+      }),
+      { lat: 0, lng: 0 },
+    );
+    map.setView([lat / densest.length, lng / densest.length], 12, { animate: false });
+  }, [key, active]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return null;
+}
+
 interface StationMapProps {
   stations: ChargingStation[];
   center?: { latitude: number; longitude: number };
   selectedId?: string | null;
   onSelect?: (station: ChargingStation) => void;
+  onClearSelection?: () => void;
   height?: string;
   /** Shown when there are no stations to plot. */
   emptyMessage?: string;
+  /** Tighter chrome for the dashboard's nearby widget. */
+  compact?: boolean;
 }
 
 const StationMap: React.FC<StationMapProps> = ({
@@ -64,9 +111,14 @@ const StationMap: React.FC<StationMapProps> = ({
   center,
   selectedId = null,
   onSelect,
+  onClearSelection,
   height = '600px',
   emptyMessage = 'No stations to show on the map yet.',
+  compact = false,
 }) => {
+  const [tileError, setTileError] = useState(false);
+  const [tilesReady, setTilesReady] = useState(false);
+
   const mapCenter = useMemo<[number, number]>(
     () => [center?.latitude ?? 37.7749, center?.longitude ?? -122.4194],
     [center?.latitude, center?.longitude],
@@ -74,16 +126,52 @@ const StationMap: React.FC<StationMapProps> = ({
 
   const selected = stations.find((station) => station.id === selectedId) || null;
 
+  if (stations.length === 0) {
+    return (
+      <div
+        className="grid place-items-center rounded-card border border-line bg-surface-muted px-5 text-center"
+        style={{ height }}
+      >
+        <div className="max-w-xs py-6">
+          <span className="ev-medallion mx-auto h-10 w-10">
+            <MapPin className="h-5 w-5 text-ink-subtle" aria-hidden="true" />
+          </span>
+          <p className="mt-3 text-sm leading-relaxed text-ink-muted">{emptyMessage}</p>
+          <p className="mt-1.5 text-xs text-ink-subtle">
+            The station list beside the map still works.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="chargeease-map relative rounded-card overflow-hidden border border-line" style={{ height }}>
+    <div
+      className="chargeease-map relative overflow-hidden rounded-card border border-line"
+      style={{ height }}
+      role="region"
+      aria-label="Map of charging stations"
+    >
       <MapContainer
         center={mapCenter}
         zoom={center ? 12 : 11}
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom
       >
-        <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} maxZoom={19} />
-        {center && <Recenter center={mapCenter} />}
+        <TileLayer
+          url={TILE_URL}
+          attribution={TILE_ATTRIBUTION}
+          maxZoom={19}
+          eventHandlers={{
+            tileerror: () => setTileError(true),
+            load: () => setTilesReady(true),
+          }}
+        />
+        {center ? (
+          <Recenter center={mapCenter} />
+        ) : (
+          <InitialView stations={stations} active={!center} />
+        )}
         {stations.map((station) => (
           <Marker
             key={station.id}
@@ -96,12 +184,18 @@ const StationMap: React.FC<StationMapProps> = ({
             eventHandlers={{ click: () => onSelect?.(station) }}
           >
             <Popup>
-              <div className="min-w-[180px]">
+              <div className="min-w-[190px]">
                 <p className="font-semibold text-ink">{station.name}</p>
                 <p className="text-xs text-ink-muted">{station.address}</p>
-                <p className="text-xs mt-1">
+                <p className="mt-1 text-xs">
                   {station.availability.status} · {station.availability.availableConnectors}/
                   {station.availability.totalConnectors} free
+                </p>
+                <p className="text-xs">
+                  {station.connectorTypes
+                    .slice(0, 2)
+                    .map((connector) => `${connector.type} ${connector.maxPower} kW`)
+                    .join(' · ')}
                 </p>
                 <p className="text-xs">
                   {station.pricing.perKwh != null
@@ -109,29 +203,69 @@ const StationMap: React.FC<StationMapProps> = ({
                     : 'Pricing varies'}
                   {station.distance != null && ` · ${station.distance} mi`}
                 </p>
+                <Link
+                  to={`/station/${station.id}`}
+                  className="mt-1.5 inline-block text-xs font-semibold text-brand underline-offset-2 hover:underline"
+                >
+                  View station details
+                </Link>
               </div>
             </Popup>
           </Marker>
         ))}
       </MapContainer>
 
-      {stations.length === 0 && (
-        <div className="relative rounded-card overflow-hidden border border-deep-line p-6 shadow-card" style={{ backgroundImage: 'linear-gradient(135deg, rgb(17 24 31 / 0.8), rgb(5 7 8 / 0.6))' }}>
-          <div className="absolute inset-0">
-            <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-brand/5 blur-3xl opacity-50" />
-            <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full bg-brand/5 blur-3xl opacity-30" />
-          </div>
-          <span className="grid place-items-center w-16 h-16 mx-auto mb-4 rounded-control bg-surface-muted relative">
-            <MapPin className="w-8 h-8 text-ink-subtle" aria-hidden="true" />
-          </span>
-          <p className="text-sm text-ink-muted">{emptyMessage}</p>
+      {!tilesReady && !tileError && (
+        <div
+          role="status"
+          className="absolute left-1/2 top-3 z-[500] -translate-x-1/2 rounded-full border border-line bg-surface px-3 py-1.5 text-xs text-ink-muted shadow-card"
+        >
+          Loading map…
+        </div>
+      )}
+
+      {tileError && (
+        <div
+          role="status"
+          className="absolute left-1/2 top-3 z-[500] w-[calc(100%-1.5rem)] max-w-sm -translate-x-1/2 rounded-control border border-warning/40 bg-warning-soft px-3 py-2 text-center text-xs leading-relaxed text-warning-ink shadow-card"
+        >
+          Map tiles could not load. Station markers and the list still work.
         </div>
       )}
 
       {selected && (
-        <div className="absolute bottom-3 left-3 right-3 sm:right-auto sm:max-w-sm bg-surface rounded-control shadow-lg border border-line p-3 z-[400]">
-          <p className="font-semibold text-sm text-ink">{selected.name}</p>
-          <p className="text-xs text-ink-muted">{selected.address}</p>
+        <div className="absolute bottom-3 left-3 right-3 z-[400] rounded-control border border-line bg-surface p-3 shadow-card sm:right-auto sm:max-w-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-ink">{selected.name}</p>
+              <p className="mt-0.5 truncate text-xs text-ink-muted">{selected.address}</p>
+            </div>
+            {onClearSelection && (
+              <button
+                type="button"
+                onClick={onClearSelection}
+                aria-label="Close station summary"
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-line text-ink-muted transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
+          </div>
+          {!compact && (
+            <p className="mt-1 text-xs text-ink-subtle">
+              {selected.availability.status} ·{' '}
+              {selected.availability.availableConnectors}/{selected.availability.totalConnectors}{' '}
+              connectors free
+              {selected.pricing.perKwh != null &&
+                ` · ${formatPrice(selected.pricing.perKwh)}/kWh`}
+            </p>
+          )}
+          <Link
+            to={`/station/${selected.id}`}
+            className="mt-2 inline-flex text-xs font-semibold text-brand underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            Open station details
+          </Link>
         </div>
       )}
     </div>

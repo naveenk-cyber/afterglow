@@ -3,7 +3,7 @@
 const config = require('./config');
 const { getDatabase } = require('./db');
 const { createApp } = require('./app');
-const { seedIfEmpty } = require('./seed');
+const { seedIfEmpty, seedDemoUser } = require('./seed');
 
 function start() {
   const db = getDatabase();
@@ -12,11 +12,14 @@ function start() {
   // Set SEED_ON_START=false to disable.
   if (process.env.SEED_ON_START !== 'false') {
     seedIfEmpty(db);
+    // The demo account is a development convenience only. It is never created
+    // automatically in production.
+    if (!config.isProduction) seedDemoUser(db);
   }
 
   const app = createApp(db);
   const server = app.listen(config.port, () => {
-    console.log(`ChargeEase API listening on http://localhost:${config.port}${config.apiPrefix}`);
+    console.log(`Afterglow API listening on http://localhost:${config.port}${config.apiPrefix}`);
     console.log(`Environment: ${config.nodeEnv}`);
     if (!config.isProduction) {
       console.log('Sample station data is seeded automatically when the database is empty.');

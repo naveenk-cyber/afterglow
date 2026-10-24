@@ -15,6 +15,7 @@ import {
   Zap 
 } from 'lucide-react';
 import Badge from '../components/ui/Badge';
+import Breadcrumbs from '../components/ui/Breadcrumbs';
 import Button from '../components/ui/Button';
 import ButtonLink from '../components/ui/ButtonLink';
 import { buttonClasses } from '../components/ui/buttonStyles';
@@ -23,10 +24,9 @@ import StationMap from '../components/common/StationMap';
 import { stationService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useFavorites } from '../hooks/useFavorites';
+import { useRecentlyViewed } from '../hooks/useRecentlyViewed';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { formatDate, formatPrice } from '../utils/helpers';
-
-const RECENT_LIMIT = 8;
 
 /** Availability states map onto the shared badge tones, not raw hex colours. */
 const AVAILABILITY_TONE = {
@@ -38,23 +38,13 @@ const AVAILABILITY_TONE = {
 
 const SECTION = 'bg-surface rounded-card border border-line p-6 shadow-card';
 
-function rememberVisited(id: string) {
-  try {
-    const raw = localStorage.getItem('recentlyViewed');
-    const list: string[] = raw ? JSON.parse(raw) : [];
-    const next = [id, ...list.filter((item) => item !== id)].slice(0, RECENT_LIMIT);
-    localStorage.setItem('recentlyViewed', JSON.stringify(next));
-  } catch {
-    /* storage unavailable — recently viewed is a nice-to-have */
-  }
-}
-
 const StationDetailsPage: React.FC = () => {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { recordVisit } = useRecentlyViewed();
   const { latitude, longitude, getCurrentLocation, isLoading: locating } = useGeolocation({
     immediate: false,
   });
@@ -65,8 +55,8 @@ const StationDetailsPage: React.FC = () => {
   const [reviewMessage, setReviewMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (id) rememberVisited(id);
-  }, [id]);
+    if (id) recordVisit(id);
+  }, [id, recordVisit]);
 
   const origin =
     latitude != null && longitude != null ? { latitude, longitude } : undefined;
@@ -159,6 +149,14 @@ const StationDetailsPage: React.FC = () => {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Breadcrumbs
+          className="mb-4"
+          items={[
+            { label: 'Home', to: '/' },
+            { label: 'Find stations', to: '/search' },
+            { label: station.name },
+          ]}
+        />
         <button
           type="button"
           onClick={() => navigate(-1)}
@@ -210,7 +208,7 @@ const StationDetailsPage: React.FC = () => {
                     navigate('/login');
                     return;
                   }
-                  toggleFavorite(id);
+                  void toggleFavorite(id);
                 }}
                 leftIcon={<Heart className={isFavorite(id) ? 'w-4 h-4 fill-current' : 'w-4 h-4'} />}
               >
@@ -227,6 +225,14 @@ const StationDetailsPage: React.FC = () => {
                 </span>
                 Directions
               </a>
+              <ButtonLink
+                to={`/compare?ids=${station.id}`}
+                variant="ghost"
+                size="md"
+                fullWidth
+              >
+                Compare
+              </ButtonLink>
               {latitude == null && (
                 <Button variant="ghost" size="md" fullWidth onClick={getCurrentLocation} isLoading={locating}>
                   Use my location
@@ -262,8 +268,15 @@ const StationDetailsPage: React.FC = () => {
                         up to {connector.maxPower} kW
                       </p>
                     </div>
-                    <Badge tone={connector.available ? 'brand' : 'neutral'}>
-                      {connector.count} connector{connector.count === 1 ? '' : 's'}
+                    <Badge
+                      tone={
+                        (connector.availableCount ?? (connector.available ? connector.count : 0)) > 0
+                          ? 'brand'
+                          : 'neutral'
+                      }
+                    >
+                      {connector.availableCount ?? (connector.available ? connector.count : 0)} of{' '}
+                      {connector.count} free
                     </Badge>
                   </li>
                 ))}

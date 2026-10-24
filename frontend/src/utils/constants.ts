@@ -1,8 +1,14 @@
 // API Constants
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+//
+// Default to a same-origin path. In development the Vite proxy forwards
+// `/api` to the Express server; in production a reverse proxy does the same.
+// The previous absolute `http://localhost:5000` default broke whenever
+// `localhost` resolved to IPv6 while Express listened on IPv4, and it forced a
+// cross-origin request even though the repo documents a proxy.
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 // App Constants
-export const APP_NAME = 'ChargeEase';
+export const APP_NAME = 'Afterglow';
 export const APP_VERSION = '1.0.0';
 export const APP_DESCRIPTION = 'Find your nearest EV charging spot with ease';
 
@@ -135,7 +141,7 @@ export const SUBSCRIPTION_PLANS = [
 // Form Validation Constants
 export const VALIDATION_RULES = {
   EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-  PHONE: /^\+?[\d\s\-\(\)]+$/,
+  PHONE: /^\+?[\d\s\-()]+$/,
   PASSWORD_MIN_LENGTH: 8,
   NAME_MIN_LENGTH: 2,
   NAME_MAX_LENGTH: 50,
@@ -161,7 +167,7 @@ export const SUCCESS_MESSAGES = {
   PROFILE_UPDATED: 'Profile updated successfully.',
   PAYMENT_SUCCESSFUL: 'Payment processed successfully.',
   REVIEW_SUBMITTED: 'Review submitted successfully.',
-  ACCOUNT_CREATED: 'Account created successfully! Welcome to ChargeEase.',
+  ACCOUNT_CREATED: 'Account created successfully! Welcome to Afterglow.',
   PASSWORD_RESET: 'Password reset email sent successfully.',
 };
 
@@ -229,15 +235,15 @@ export const ROUTES = {
 
 // External URLs
 export const EXTERNAL_URLS = {
-  TERMS_OF_SERVICE: 'https://chargeease.com/terms',
-  PRIVACY_POLICY: 'https://chargeease.com/privacy',
-  SUPPORT_EMAIL: 'support@chargeease.com',
-  HELP_CENTER: 'https://help.chargeease.com',
+  TERMS_OF_SERVICE: 'https://afterglow.app/terms',
+  PRIVACY_POLICY: 'https://afterglow.app/privacy',
+  SUPPORT_EMAIL: 'support@afterglow.app',
+  HELP_CENTER: 'https://help.afterglow.app',
   SOCIAL: {
-    TWITTER: 'https://twitter.com/chargeease',
-    FACEBOOK: 'https://facebook.com/chargeease',
-    INSTAGRAM: 'https://instagram.com/chargeease',
-    LINKEDIN: 'https://linkedin.com/company/chargeease',
+    TWITTER: 'https://twitter.com/afterglow',
+    FACEBOOK: 'https://facebook.com/afterglow',
+    INSTAGRAM: 'https://instagram.com/afterglow',
+    LINKEDIN: 'https://linkedin.com/company/afterglow',
   },
 };
 

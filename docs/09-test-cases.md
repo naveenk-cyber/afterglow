@@ -98,7 +98,7 @@ Representative frontend test cases:
 
 | # | Test case | Expected | Requirement |
 | --- | --- | --- | --- |
-| TC-F01 | Sign in with `demo@chargeease.test` | Token stored, navigation to `/dashboard`, `POST /auth/login` called once | FR-4 |
+| TC-F01 | Sign in with `demo@afterglow.test` | Token stored, navigation to `/dashboard`, `POST /auth/login` called once | FR-4 |
 | TC-F02 | Submit an invalid email | Field message shown, **no** request sent | FR-38 |
 | TC-F03 | API replies `401` on sign-in | Alert region shows the API message, no token stored | FR-5 |
 | TC-F04 | Open a protected page with no token | Redirect to sign-in, protected content absent | FR-10 |
@@ -125,7 +125,7 @@ Performed in a real browser against Vite `:5173` and the API `:5000`.
 
 | # | Scenario | Steps | Observed result | Requirement |
 | --- | --- | --- | --- | --- |
-| TC-M01 | Sign in with the demo account | `/login` → *Use the demo account* → *Sign in with demo account* | Redirected to `/dashboard`, "Welcome back, Demo", title "Dashboard · ChargeEase" | FR-4, FR-36 |
+| TC-M01 | Sign in with the demo account | `/login` → *Use the demo account* → *Sign in with demo account* | Redirected to `/dashboard`, "Welcome back, Demo", title "Dashboard · Afterglow" | FR-4, FR-36 |
 | TC-M02 | Excellent-practice form feedback | Submit `not-an-email` | Field shows "Please enter a valid email address", `aria-invalid="true"`, `aria-describedby` wired, **no request sent** (this was a real defect — the fix is `noValidate` on the zod-driven forms) | FR-38 |
 | TC-M03 | Search and result announcement | Open `/search` | "14 stations" in a `role="status"` live region; 14 cards from the database | FR-11, FR-39 |
 | TC-M04 | Skip link and landmarks | Focus the first element / inspect the DOM | `a.skip-link` visible on focus at `top ≈ 8px`; `<main id="main-content" tabindex="-1">`; focus moves to main on navigation | FR-37 |
@@ -139,7 +139,7 @@ Performed in a real browser against Vite `:5173` and the API `:5000`.
 | TC-M12 | Favourite round trip | Station page *Save* → `/profile` | Button becomes "Saved"; the station appears under *Saved stations* and in `GET /users/favorites` | FR-30 |
 | TC-M13 | Dashboard uses stored data | `/dashboard`, compare with `GET /users/analytics` | Numbers match exactly (2 sessions, 7.2 kWh, $3.12, 2 bookings) and are labelled "estimated from session duration" | FR-34 |
 | TC-M14 | Profile and vehicles | `/profile` | Account details, units, notifications, vehicles (2023 Demo Volt EV, 68 kWh, CCS/J1772), saved stations all render | FR-28, FR-29 |
-| TC-M15 | Route titles | Navigate several routes | Title follows the route, e.g. "Station details · ChargeEase", "My bookings · ChargeEase" | FR-36 |
+| TC-M15 | Route titles | Navigate several routes | Title follows the route, e.g. "Station details · Afterglow", "My bookings · Afterglow" | FR-36 |
 | TC-M16 | 404 route | Open an unknown path | `NotFoundPage` renders with a route back | FR-37 |
 | TC-M17 | Membership honesty | `/membership` | Free is available; paid tiers are marked *Planned* and cannot be purchased (no billing endpoint exists) | FR-35 |
 | TC-M18 | Demo mode fallback | Stop the API and search | Amber "Demo mode — showing bundled sample stations because the API is unreachable. These are not real stations." | FR-18 |
@@ -147,7 +147,7 @@ Performed in a real browser against Vite `:5173` and the API `:5000`.
 | TC-M20 | Profile form validation | `/profile`, clear the name, *Save changes* | App alert "Add your full name before saving."; only the favourites request is made | FR-28, FR-38 |
 | TC-M21 | Review form validation | Station page, submit an empty review | Announced message "Add a title and a comment before submitting."; no POST | FR-31, FR-38 |
 | TC-M22 | Unknown station id | `/station/does-not-exist` in a fresh tab | "Station unavailable" with the API message "Station not found." and *Retry* / *Back to search* | FR-17, NFR-8 |
-| TC-M23 | Unknown route | `/this-route-does-not-exist` | "404" page, title "Page not found · ChargeEase", links to home and search | FR-37 |
+| TC-M23 | Unknown route | `/this-route-does-not-exist` | "404" page, title "Page not found · Afterglow", links to home and search | FR-37 |
 | TC-M24 | Navigation sweep | Collect every `href` on the home page | All 21 internal links resolve to declared routes; protected links redirect signed-out visitors to sign-in | FR-10, FR-41 |
 
 ## 4. Traceability matrix

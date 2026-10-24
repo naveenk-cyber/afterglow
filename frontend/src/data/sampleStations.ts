@@ -4,7 +4,7 @@ import { calculateDistance } from '../utils/helpers';
 /**
  * OFFLINE SAMPLE DATA (demo mode).
  *
- * Used only when the ChargeEase API cannot be reached, so the interface stays
+ * Used only when the Afterglow API cannot be reached, so the interface stays
  * explorable without a backend. These are fictional stations — they are
  * labelled "Sample data" in the UI and must never be presented as real.
  * Mirrors the ids used by the backend seed so links keep working.
@@ -30,7 +30,7 @@ type SampleSeed = {
 const SEED: SampleSeed[] = [
   {
     id: 'st-001', name: 'Downtown Market Street Hub', address: '865 Market St', city: 'San Francisco', postcode: '94103',
-    lat: 37.7845, lng: -122.4075, operator: 'ChargeEase Demo Network', hostType: 'Other', speed: 'DC Fast', status: 'Available',
+    lat: 37.7845, lng: -122.4075, operator: 'Afterglow Demo Network', hostType: 'Other', speed: 'DC Fast', status: 'Available',
     amenities: ['Restrooms', 'WiFi', 'Shopping', '24/7 Access'], pricePerKwh: 0.34, sessionFee: 0.5,
     connectors: [ { type: 'CCS', kw: 150, count: 6, available: 4 }, { type: 'CHAdeMO', kw: 62.5, count: 2, available: 1 } ],
   },
@@ -54,7 +54,7 @@ const SEED: SampleSeed[] = [
   },
   {
     id: 'st-005', name: 'Financial District Level 2 Lot', address: '555 California St', city: 'San Francisco', postcode: '94104',
-    lat: 37.7924, lng: -122.4057, operator: 'ChargeEase Demo Network', hostType: 'Other', speed: 'Level 2', status: 'Available',
+    lat: 37.7924, lng: -122.4057, operator: 'Afterglow Demo Network', hostType: 'Other', speed: 'Level 2', status: 'Available',
     amenities: ['Parking', 'Coffee'], pricePerKwh: 0.24,
     connectors: [ { type: 'J1772', kw: 6.6, count: 8, available: 8 } ],
   },
@@ -96,7 +96,7 @@ const SEED: SampleSeed[] = [
   },
   {
     id: 'st-012', name: 'Austin Congress Avenue Hub', address: '300 Congress Ave', city: 'Austin', postcode: '78701',
-    lat: 30.2669, lng: -97.7428, operator: 'ChargeEase Demo Network', hostType: 'Other', speed: 'DC Fast', status: 'Available',
+    lat: 30.2669, lng: -97.7428, operator: 'Afterglow Demo Network', hostType: 'Other', speed: 'DC Fast', status: 'Available',
     amenities: ['Restaurant', 'WiFi', 'Restrooms'], pricePerKwh: 0.31, sessionFee: 0.25,
     connectors: [ { type: 'CCS', kw: 180, count: 6, available: 6 }, { type: 'Tesla', kw: 250, count: 4, available: 3 } ],
   },

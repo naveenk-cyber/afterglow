@@ -31,6 +31,8 @@ export interface ConnectorType {
   maxPower: number; // in kW
   available: boolean;
   count: number;
+  /** Exact free connectors for this type, when the feed reports it. */
+  availableCount?: number;
 }
 
 export type ChargingSpeed = 'Level 1' | 'Level 2' | 'DC Fast' | 'Supercharger';
@@ -65,7 +67,7 @@ export interface User {
   email: string;
   name: string;
   phone?: string;
-  avatar?: string;
+  avatar?: string | null;
   vehicles: Vehicle[];
   preferences: UserPreferences;
   membershipLevel: 'Free' | 'Premium' | 'Elite';
@@ -105,8 +107,12 @@ export interface Booking {
   endTime: string;
   duration: number; // in minutes
   connectorType: string;
-  status: 'Pending' | 'Confirmed' | 'Active' | 'Completed' | 'Cancelled';
+  /** API statuses are lower-case; the UI maps them to display labels. */
+  status: 'pending' | 'confirmed' | 'active' | 'completed' | 'cancelled';
   totalCost: number;
+  currency?: string;
+  /** True for reservations that never touch real charging hardware. */
+  simulated?: boolean;
   energyDelivered?: number; // in kWh
   createdAt: string;
   updatedAt: string;
@@ -121,7 +127,7 @@ export interface PaymentMethod {
 }
 
 // Search Types
-export type SearchSort = 'distance' | 'price' | 'rating' | 'speed' | 'name';
+export type SearchSort = 'distance' | 'price' | 'rating' | 'speed' | 'availability' | 'name';
 
 export interface SearchFilters {
   /** Free-text query matched against name, address, city and operator. */
@@ -171,6 +177,18 @@ export interface UserAnalytics {
   carbonFootprintSaved: number; // in kg CO2
   favoriteStations: ChargingStation[];
   monthlyUsage: MonthlyUsage[];
+  /** Extended fields returned by GET /users/analytics?days=. */
+  rangeDays?: number;
+  rangeStart?: string;
+  rangeEnd?: string;
+  averageDurationMinutes?: number;
+  sessionsPerWeek?: number;
+  totalBookings?: number;
+  previousPeriod?: AnalyticsPeriod;
+  dailyUsage?: DailyUsage[];
+  connectorUsage?: ConnectorUsage[];
+  recentSessions?: ChargingSession[];
+  upcomingBookings?: Booking[];
 }
 
 export interface MonthlyUsage {
@@ -178,6 +196,66 @@ export interface MonthlyUsage {
   sessions: number;
   energyConsumed: number;
   cost: number;
+}
+
+export interface DailyUsage {
+  /** UTC date, YYYY-MM-DD. */
+  date: string;
+  sessions: number;
+  energyConsumed: number;
+  cost: number;
+}
+
+export interface ConnectorUsage {
+  label: string;
+  value: number;
+}
+
+export interface AnalyticsPeriod {
+  totalSessions: number;
+  totalEnergyConsumed: number;
+  totalCost: number;
+  averageDurationMinutes: number;
+  sessionsPerWeek: number;
+}
+
+export interface ChargingSession {
+  id: string;
+  bookingId: string | null;
+  stationId: string;
+  station: ChargingStation | null;
+  connectorType: string;
+  startedAt: string;
+  endedAt: string | null;
+  durationMinutes: number | null;
+  status: 'active' | 'completed';
+  energyKwh: number;
+  cost: number;
+  currency: string;
+  simulated: boolean;
+  operatorConfirmed: boolean;
+}
+
+export interface Wallet {
+  id: string;
+  userId: string;
+  balanceMinor: number;
+  balance: number;
+  currency: string;
+  simulated: boolean;
+  updatedAt: string;
+}
+
+export interface WalletTransaction {
+  id: string;
+  userId: string;
+  type: 'topup' | 'charge' | 'refund' | string;
+  amount: number;
+  balanceAfter: number;
+  description: string;
+  reference: string | null;
+  simulated: boolean;
+  createdAt: string;
 }
 
 // Review Types

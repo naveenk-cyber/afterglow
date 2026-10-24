@@ -12,7 +12,7 @@ interface BackdropProps {
  *
  * Adapted from the reference theme's backdrop vocabulary — a blurred gradient
  * bubble in one corner plus concentric halo rings that rotate very slowly — but
- * rebuilt from ChargeEase's tokens, so it picks up the emerald accent and flips
+ * rebuilt from Afterglow's tokens, so it picks up the emerald accent and flips
  * with the theme. Everything here is `aria-hidden` and non-interactive, and the
  * reduced-motion block in `index.css` stops the rotation.
  */

@@ -19,6 +19,7 @@ import Wordmark from '../ui/Wordmark';
 
 const NAV_LINKS = [
   { name: 'Find stations', href: '/search' },
+  { name: 'Compare', href: '/compare' },
   { name: 'Membership', href: '/membership' },
   { name: 'About', href: '/about' },
   { name: 'Contact', href: '/contact' },
@@ -82,7 +83,7 @@ const Header: React.FC = () => {
         <Link
           to="/"
           className="flex shrink-0 items-center gap-2.5 rounded-full focus-visible:ring-2 focus-visible:ring-brand"
-          aria-label="ChargeEase home"
+          aria-label="Afterglow home"
         >
           <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-brand text-on-accent shadow-[0_6px_18px_-10px_rgb(198_255_0/0.85)]">
             <Zap className="h-4 w-4" fill="currentColor" strokeWidth={0} aria-hidden="true" />

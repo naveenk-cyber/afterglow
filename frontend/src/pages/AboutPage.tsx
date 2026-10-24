@@ -1,315 +1,278 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { 
-  Zap, 
-  Users, 
-  MapPin, 
-  Award, 
-  Leaf, 
-  Shield, 
-  Clock, 
-  Star, 
-  ArrowRight 
+import {
+  ArrowRight,
+  BatteryCharging,
+  CalendarCheck,
+  Database,
+  Gauge,
+  Info,
+  Lock,
+  MapPin,
+  PlugZap,
+  Search,
+  ShieldCheck,
+  Wallet,
 } from 'lucide-react';
-import Button from '../components/ui/Button';
+import PageHero from '../components/layout/PageHero';
+import SectionHeading from '../components/ui/SectionHeading';
+import Breadcrumbs from '../components/ui/Breadcrumbs';
+import ButtonLink from '../components/ui/ButtonLink';
+import Badge from '../components/ui/Badge';
+import { useCatalogCounts } from '../hooks/useStationCatalog';
+
+const CAPABILITIES = [
+  {
+    icon: Search,
+    title: 'Discover',
+    body: 'Search by city, postcode or station name, then narrow by connector standard, charging speed, availability, network and amenities. List and map views share the same results.',
+    to: '/search',
+    action: 'Open the finder',
+  },
+  {
+    icon: Gauge,
+    title: 'Compare',
+    body: 'Put up to three stations side by side on peak power, connectors, price, session fee, amenities and opening hours — read from the same records the finder uses.',
+    to: '/compare',
+    action: 'Compare stations',
+  },
+  {
+    icon: CalendarCheck,
+    title: 'Plan and record',
+    body: 'Create a booking against a station record, review it in your account and keep a wallet ledger of simulated charging sessions.',
+    to: '/membership',
+    action: 'See membership',
+  },
+];
+
+const DATA_RULES = [
+  {
+    icon: Database,
+    title: 'One catalogue, one source',
+    body: 'Station records come from the Afterglow API and its SQLite database. The homepage counts, city list, featured stations and finder results are all derived from that same catalogue.',
+  },
+  {
+    icon: Info,
+    title: 'Availability is reported, not live',
+    body: 'The connector counts on a station page are the values stored in its record. Nothing in this build polls an operator’s network, so treat “available” as a snapshot rather than a guarantee.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'No sponsored placement',
+    body: 'Results are ordered by the sort you choose. There is no paid ranking, no promoted pin and no commission on a booking.',
+  },
+  {
+    icon: Lock,
+    title: 'Local choices stay local',
+    body: 'Favourites, recently viewed stations and your theme preference live in this browser’s storage. There is no advertising tracker or third-party analytics script.',
+  },
+];
 
 const AboutPage: React.FC = () => {
-  const stats = [
-    { label: 'Charging Stations', value: '10,000+', icon: MapPin },
-    { label: 'Happy Users', value: '50,000+', icon: Users },
-    { label: 'Cities Covered', value: '200+', icon: Star },
-    { label: 'CO₂ Saved', value: '2M kg', icon: Leaf }
-  ];
+  const { stations, connectorStandards, cities, source, isLoading } = useCatalogCounts();
+  const isDemo = source === 'demo';
 
-  const features = [
-    {
-      icon: Clock,
-      title: '24/7 Availability',
-      description: 'Find charging stations that are always open when you need them.'
-    },
-    {
-      icon: Shield,
-      title: 'Secure & Reliable',
-      description: 'All our partner stations are verified for safety and reliability.'
-    },
-    {
-      icon: Zap,
-      title: 'Fast Charging',
-      description: 'Access to the fastest charging networks across the country.'
-    },
-    {
-      icon: Award,
-      title: 'Best Prices',
-      description: 'Compare prices and find the most affordable charging options.'
-    }
-  ];
-
-  const team = [
-    {
-      name: 'Sarah Johnson',
-      role: 'CEO & Co-Founder',
-      bio: 'Former Tesla engineer with 10+ years in EV technology.'
-    },
-    {
-      name: 'Michael Chen',
-      role: 'CTO & Co-Founder',
-      bio: 'Tech visionary focused on sustainable transportation solutions.'
-    },
-    {
-      name: 'Emily Rodriguez',
-      role: 'Head of Operations',
-      bio: 'Operations expert ensuring seamless charging experiences.'
-    }
+  const metrics = [
+    { label: 'Stations in the catalogue', value: isLoading ? '—' : String(stations) },
+    { label: 'Connector standards', value: isLoading ? '—' : String(connectorStandards) },
+    { label: 'Cities represented', value: isLoading ? '—' : String(cities) },
   ];
 
   return (
-    <div className="min-h-screen bg-canvas">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden border-b border-line bg-deep text-deep-ink">
-        <div className="ev-grid ev-grid--center" aria-hidden="true" />
-        <div className="relative mx-auto max-w-[1280px] px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-center"
-          >
-            <div className="mb-4 flex justify-center">
-              <div className="grid h-11 w-11 place-items-center rounded-full border border-brand/25 bg-brand-soft">
-                <Zap className="h-5 w-5 text-brand" />
-              </div>
+    <div>
+      <PageHero
+        eyebrow="About Afterglow"
+        title="A charging platform that is honest about its edges"
+        description="Afterglow is a working full-stack product for finding, comparing and booking EV charging. It is not a charging network, and it does not pretend to have live operator data."
+      />
+
+      <div className="mx-auto max-w-[1280px] px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+        <Breadcrumbs items={[{ label: 'Home', to: '/' }, { label: 'About' }]} />
+
+        <section className="mt-8 grid gap-8 lg:grid-cols-[1.15fr_1fr] lg:items-start" aria-labelledby="mission-heading">
+          <div>
+            <p className="ev-label">Why it exists</p>
+            <h2 id="mission-heading" className="ev-title mt-2 text-ink">
+              Charging should be a decision, not a gamble
+            </h2>
+            <p className="mt-4 text-[0.95rem] leading-relaxed text-ink-muted">
+              Most range anxiety is really information anxiety: will the connector fit, is the
+              charger fast enough, what will the session cost, and is the site open when you
+              arrive? Afterglow brings those answers into one place before you leave.
+            </p>
+            <p className="mt-3 text-[0.95rem] leading-relaxed text-ink-muted">
+              The product is built around the station record: power, plug standards, price, hours,
+              amenities and the connector counts reported for that site. Where a field is missing,
+              the interface says so instead of filling the gap with a plausible number.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-2.5">
+              <ButtonLink to="/search" size="md" rightIcon={<ArrowRight className="h-4 w-4" />}>
+                Find a station
+              </ButtonLink>
+              <ButtonLink to="/signup" variant="ghost" size="md">
+                Create an account
+              </ButtonLink>
             </div>
-            <h1 className="ev-display mx-auto max-w-[16ch] text-deep-ink">
-              About ChargeEase
-            </h1>
-            <p className="mx-auto mt-4 max-w-2xl text-[0.95rem] leading-relaxed text-deep-ink-muted sm:text-base">
-              Making electric vehicle charging simple, accessible, and reliable for everyone.
-            </p>
-          </motion.div>
-        </div>
-      </section>
+          </div>
 
-      {/* Mission Section */}
-      <section className="py-11 lg:py-14">
-        <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 items-center gap-9 lg:grid-cols-2 lg:gap-12">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              <h2 className="ev-title mb-3 text-ink">
-                Our Mission
-              </h2>
-              <p className="mb-3 text-[0.95rem] leading-relaxed text-ink-muted">
-                We believe that electric vehicle adoption should be effortless. Our mission is to 
-                eliminate range anxiety by providing the most comprehensive, user-friendly platform
-                for finding and booking charging stations.
-              </p>
-              <p className="mb-6 text-[0.95rem] leading-relaxed text-ink-muted">
-                By connecting EV drivers with reliable charging infrastructure, we're accelerating 
-                the transition to sustainable transportation and helping create a cleaner future for all.
-              </p>
-              <div className="flex space-x-4">
-                <Button>
-                  Get Started
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-                <Button variant="outline">Learn More</Button>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="relative"
-            >
-              <img
-                src="/assets/charging-hardware.jpg"
-                alt="Electric vehicle charging"
-                className="aspect-[3/2] w-full rounded-card border border-line object-cover shadow-card"
-              />
-              <div className="absolute -bottom-4 right-2 rounded-card bg-brand p-4 text-on-accent shadow-lg sm:-right-4">
-                <div className="text-center">
-                  <div className="ev-figure text-2xl">5★</div>
-                  <div className="text-xs font-medium">User Rating</div>
+          <dl className="rounded-panel border border-line bg-surface p-5 shadow-card sm:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <dt className="ev-label">Measured right now</dt>
+              <Badge tone={isDemo ? 'warning' : 'success'} dot>
+                {isDemo ? 'Sample catalogue' : 'API-backed'}
+              </Badge>
+            </div>
+            <div className="mt-4 divide-y divide-line">
+              {metrics.map((metric) => (
+                <div key={metric.label} className="flex items-baseline justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                  <dt className="text-sm text-ink-muted">{metric.label}</dt>
+                  <dd className="ev-figure text-[1.7rem] text-ink">{metric.value}</dd>
                 </div>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* Stats Section */}
-      <section className="border-y border-line bg-surface-muted py-11 lg:py-14">
-        <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="mb-9 text-center"
-          >
-            <h2 className="ev-title mb-2 text-ink">
-              By the Numbers
-            </h2>
-            <p className="mx-auto max-w-2xl text-[0.95rem] text-ink-muted">
-              Our platform continues to grow, connecting more EV drivers with charging solutions every day.
+              ))}
+            </div>
+            <p className="mt-4 border-t border-line pt-3 text-xs leading-relaxed text-ink-subtle">
+              {isDemo
+                ? 'The API is unreachable, so these figures describe the bundled sample catalogue. The interface labels every surface that falls back to it.'
+                : 'These figures are counted from the live station catalogue, not from a marketing spreadsheet.'}
             </p>
-          </motion.div>
-          <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
-            {stats.map((stat, index) => {
-              const Icon = stat.icon;
-              return (
-                <motion.div
-                  key={stat.label}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
-                  className="text-center"
-                >
-                  <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full border border-brand/20 bg-brand-soft">
-                    <Icon className="h-5 w-5 text-brand" />
-                  </div>
-                  <div className="ev-figure mb-1 text-[2rem] text-ink">
-                    {stat.value}
-                  </div>
-                  <div className="text-sm text-ink-muted">
-                    {stat.label}
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+          </dl>
+        </section>
 
-      {/* Features Section */}
-      <section className="py-11 lg:py-14">
-        <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="mb-9 text-center"
-          >
-            <h2 className="ev-title mb-2 text-ink">
-              Why Choose ChargeEase?
-            </h2>
-            <p className="mx-auto max-w-2xl text-[0.95rem] text-ink-muted">
-              We've built the most comprehensive and user-friendly EV charging platform.
-            </p>
-          </motion.div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {features.map((feature, index) => {
-              const Icon = feature.icon;
-              return (
-                <motion.div
-                  key={feature.title}
-                  initial={{ opacity: 0, y: 20 }}
-                                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
-                  className="rounded-card border border-line bg-surface p-5 text-center shadow-card"
-                >
-                  <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full border border-brand/20 bg-brand-soft">
-                    <Icon className="h-5 w-5 text-brand" />
-                  </div>
-                  <h3 className="ev-card-title mb-1.5 text-ink">
-                    {feature.title}
-                  </h3>
-                  <p className="text-[0.8125rem] leading-relaxed text-ink-muted">
-                    {feature.description}
-                  </p>
-                </motion.div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Team Section */}
-      <section className="border-y border-line bg-surface-muted py-11 lg:py-14">
-        <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="mb-9 text-center"
-          >
-            <h2 className="ev-title mb-2 text-ink">
-              Meet Our Team
-            </h2>
-            <p className="mx-auto max-w-2xl text-[0.95rem] text-ink-muted">
-              We're a passionate team of engineers, designers, and EV enthusiasts.
-            </p>
-          </motion.div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {team.map((member, index) => (
-              <motion.div
-                key={member.name}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-                className="rounded-card border border-line bg-surface p-5 text-center"
+        <section className="mt-12" aria-labelledby="capabilities-heading">
+          <SectionHeading
+            id="capabilities-heading"
+            eyebrow="What you can do"
+            title="Three jobs, end to end"
+            description="Each capability below is wired to the backend that exists in this build. None of it is a mock-up screen."
+          />
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            {CAPABILITIES.map((capability) => (
+              <div
+                key={capability.title}
+                className="flex flex-col rounded-card border border-line bg-surface p-5 shadow-card"
               >
-                <div
-                  aria-hidden="true"
-                  className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full border border-brand/20 bg-brand-soft text-xl font-semibold text-brand"
+                <span className="ev-medallion h-9 w-9">
+                  <capability.icon className="h-4 w-4 text-brand-soft-ink" aria-hidden="true" />
+                </span>
+                <h3 className="ev-card-title mt-3 text-ink">{capability.title}</h3>
+                <p className="mt-1.5 flex-1 text-[0.8125rem] leading-relaxed text-ink-muted">
+                  {capability.body}
+                </p>
+                <ButtonLink
+                  to={capability.to}
+                  variant="ghost"
+                  size="sm"
+                  className="mt-4 self-start"
+                  rightIcon={<ArrowRight className="h-3.5 w-3.5" />}
                 >
-                  {member.name
-                    .split(' ')
-                    .map((part) => part.charAt(0))
-                    .join('')}
-                </div>
-                <h3 className="ev-card-title mb-0.5 text-ink">
-                  {member.name}
-                </h3>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.1em] text-brand">
-                  {member.role}
-                </p>
-                <p className="text-[0.8125rem] leading-relaxed text-ink-muted">
-                  {member.bio}
-                </p>
-              </motion.div>
+                  {capability.action}
+                </ButtonLink>
+              </div>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* CTA Section */}
-      <section className="py-11 lg:py-14">
-        <div className="mx-auto max-w-[1280px] px-4 text-center sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <h2 className="ev-title mb-2 text-ink">
-              Ready to Start Your EV Journey?
+        <section
+          className="mt-12 rounded-panel border border-line bg-surface-muted p-6 sm:p-8"
+          aria-labelledby="data-heading"
+        >
+          <SectionHeading
+            id="data-heading"
+            eyebrow="Data and trust"
+            title="How the information is handled"
+            description="Four rules the interface follows everywhere, including on the station pages and in the finder."
+          />
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            {DATA_RULES.map((rule) => (
+              <div key={rule.title} className="rounded-card border border-line bg-surface p-4">
+                <h3 className="ev-card-title flex items-center gap-2 text-ink">
+                  <rule.icon className="h-4 w-4 text-brand" aria-hidden="true" />
+                  {rule.title}
+                </h3>
+                <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-ink-muted">{rule.body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-12 grid gap-4 lg:grid-cols-2" aria-labelledby="simulated-heading">
+          <div className="rounded-card border border-warning/25 bg-warning-soft/40 p-5 shadow-card">
+            <h2 id="simulated-heading" className="ev-card-title flex items-center gap-2 text-ink">
+              <BatteryCharging className="h-4 w-4 text-warning-ink" aria-hidden="true" />
+              What is simulated
             </h2>
-            <p className="mx-auto mb-7 max-w-2xl text-[0.95rem] text-ink-muted">
-              Join thousands of EV drivers who trust ChargeEase for their charging needs.
-            </p>
-            <div className="flex flex-col justify-center gap-2.5 sm:flex-row">
-              <Button
-                size="lg"
-                className="bg-brand text-on-accent hover:bg-brand-strong"
-              >
-                Find Charging Stations
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-              >
-                Download App
-              </Button>
+            <ul className="mt-3 space-y-2 text-[0.8125rem] leading-relaxed text-ink-muted">
+              <li className="flex gap-2">
+                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-warning" aria-hidden="true" />
+                Bookings are recorded in the project database and checked for time conflicts, but no
+                operator is notified and no physical connector is held.
+              </li>
+              <li className="flex gap-2">
+                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-warning" aria-hidden="true" />
+                Wallet top-ups and charging sessions are ledger entries in demo mode. No card is
+                charged and no payment processor is connected.
+              </li>
+              <li className="flex gap-2">
+                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-warning" aria-hidden="true" />
+                Membership pricing is illustrative. Upgrade actions stay disabled until billing is
+                genuinely configured.
+              </li>
+            </ul>
+          </div>
+
+          <div className="rounded-card border border-line bg-surface p-5 shadow-card">
+            <h2 className="ev-card-title flex items-center gap-2 text-ink">
+              <Wallet className="h-4 w-4 text-brand" aria-hidden="true" />
+              How the build is put together
+            </h2>
+            <dl className="mt-3 space-y-2.5 text-[0.8125rem] leading-relaxed">
+              <div className="flex gap-3">
+                <dt className="w-20 shrink-0 text-ink-subtle">Interface</dt>
+                <dd className="text-ink-muted">React, TypeScript, Vite and Tailwind CSS</dd>
+              </div>
+              <div className="flex gap-3">
+                <dt className="w-20 shrink-0 text-ink-subtle">API</dt>
+                <dd className="text-ink-muted">Node.js and Express with JWT sessions</dd>
+              </div>
+              <div className="flex gap-3">
+                <dt className="w-20 shrink-0 text-ink-subtle">Storage</dt>
+                <dd className="text-ink-muted">SQLite in development, seeded with sample stations</dd>
+              </div>
+              <div className="flex gap-3">
+                <dt className="w-20 shrink-0 text-ink-subtle">Maps</dt>
+                <dd className="text-ink-muted">Leaflet with OpenStreetMap tiles — no tracking key required</dd>
+              </div>
+            </dl>
+            <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
+              <ButtonLink to="/contact" variant="outline" size="sm" leftIcon={<PlugZap className="h-3.5 w-3.5" />}>
+                Ask about the data
+              </ButtonLink>
+              <ButtonLink to="/membership" variant="ghost" size="sm">
+                Compare plans
+              </ButtonLink>
             </div>
-          </motion.div>
-        </div>
-      </section>
+          </div>
+        </section>
+
+        <section className="mt-12" aria-labelledby="coverage-heading">
+          <div className="flex flex-col gap-4 rounded-panel border border-line bg-surface p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+            <div>
+              <p className="ev-label">Coverage</p>
+              <h2 id="coverage-heading" className="ev-title mt-2 max-w-lg text-ink">
+                The directory grows with the catalogue
+              </h2>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-muted">
+                Cities and counts on the homepage are generated from station records, so this page
+                never advertises coverage the finder cannot serve.
+              </p>
+            </div>
+            <ButtonLink to="/search" size="lg" rightIcon={<MapPin className="h-4 w-4" />}>
+              Browse by city
+            </ButtonLink>
+          </div>
+        </section>
+      </div>
     </div>
   );
 };
 
 export default AboutPage;
-

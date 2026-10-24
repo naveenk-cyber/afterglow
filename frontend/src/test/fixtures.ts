@@ -23,7 +23,7 @@ export function makeStation(overrides: Partial<ChargingStation> = {}): ChargingS
     postcode: '94103',
     latitude: 37.7842,
     longitude: -122.4075,
-    operator: 'ChargeEase Demo Network',
+    operator: 'Afterglow Demo Network',
     dataSource: 'sample',
     lastSyncedAt: null,
     rating: 4.5,

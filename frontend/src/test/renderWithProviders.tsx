@@ -34,15 +34,13 @@ export function renderWithProviders(
   const queryClient = makeTestQueryClient();
 
   const Wrapper = ({ children }: { children: ReactNode }) => {
-    const tree = (
-      <ThemeProvider>
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-      </ThemeProvider>
-    );
+    const tree = <ThemeProvider>{children}</ThemeProvider>;
 
     return (
       <MemoryRouter initialEntries={[route]}>
-        {withAuth ? <AuthProvider>{tree}</AuthProvider> : tree}
+        <QueryClientProvider client={queryClient}>
+          {withAuth ? <AuthProvider>{tree}</AuthProvider> : tree}
+        </QueryClientProvider>
       </MemoryRouter>
     );
   };
@@ -54,7 +52,7 @@ export function renderWithProviders(
 export function makeUser(overrides: Partial<User> = {}): User {
   return {
     id: 'user-test-1',
-    email: 'test@chargeease.test',
+    email: 'test@afterglow.test',
     name: 'Test Driver',
     avatar: null,
     vehicles: [],

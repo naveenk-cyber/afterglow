@@ -36,7 +36,7 @@ const TopRatedSpots: React.FC = () => {
         title={hasRatings ? 'Charging spots worth the detour' : 'Stations built for a quick stop'}
         description={
           hasRatings
-            ? 'Ranked by driver reviews from the ChargeEase catalog.'
+            ? 'Ranked by driver reviews from the Afterglow catalog.'
             : 'Ranked by peak connector power while the review feed is still empty.'
         }
         action={

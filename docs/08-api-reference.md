@@ -287,7 +287,7 @@ curl -s localhost:5000/api/v1
 # sign in as the seeded demo account and capture the token
 TOKEN=$(curl -s -X POST localhost:5000/api/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"demo@chargeease.test","password":"Demo1234!"}' \
+  -d '{"email":"demo@afterglow.test","password":"Demo1234!"}' \
   | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).data.token))")
 
 # search with filters, then read the wallet

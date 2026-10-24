@@ -31,7 +31,11 @@ function serializeConnector(row) {
     type: row.type,
     maxPower: row.max_power_kw,
     count: row.count,
-    available: Boolean(row.available),
+    // `available` is the number of free connectors for this connector type,
+    // not a boolean flag. Keep the boolean for older consumers and expose the
+    // exact count so availability totals are not overstated.
+    available: row.available > 0,
+    availableCount: row.available,
   };
 }
 
@@ -42,8 +46,8 @@ function serializeConnector(row) {
 function serializeStation(row, connectors = [], aggregate = null, origin = null) {
   const connectorTypes = connectors.map(serializeConnector);
   const totalConnectors = connectorTypes.reduce((sum, c) => sum + c.count, 0);
-  const availableConnectors = connectorTypes.reduce(
-    (sum, c) => sum + (c.available ? c.count : 0),
+  const availableConnectors = connectors.reduce(
+    (sum, connector) => sum + Math.max(0, Number(connector.available) || 0),
     0,
   );
   const status =
@@ -144,6 +148,10 @@ function serializeBooking(row, station = null) {
 }
 
 function serializeSession(row, station = null) {
+  const endedAt = row.ended_at || null;
+  const durationMinutes = endedAt
+    ? Math.max(1, Math.round((new Date(endedAt).getTime() - new Date(row.started_at).getTime()) / 60000))
+    : null;
   return {
     id: row.id,
     bookingId: row.booking_id,
@@ -151,7 +159,9 @@ function serializeSession(row, station = null) {
     station,
     connectorType: row.connector_type,
     startedAt: row.started_at,
-    endedAt: row.ended_at,
+    endedAt,
+    durationMinutes,
+    status: endedAt ? 'completed' : 'active',
     energyKwh: row.energy_kwh,
     cost: row.cost,
     currency: row.currency,
@@ -191,7 +201,7 @@ function serializeReview(row) {
     id: row.id,
     stationId: row.station_id,
     userId: row.user_id,
-    userName: row.user_name || 'ChargeEase driver',
+    userName: row.user_name || 'Afterglow driver',
     rating: row.rating,
     title: row.title,
     comment: row.comment,

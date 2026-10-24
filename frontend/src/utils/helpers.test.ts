@@ -28,7 +28,7 @@ function makeStation(overrides: Partial<ChargingStation> = {}): ChargingStation 
     address: '1 Test St',
     latitude: 30,
     longitude: -97,
-    operator: 'ChargeEase Demo Network',
+    operator: 'Afterglow Demo Network',
     hostType: 'Other',
     chargingSpeed: 'DC Fast',
     rating: 4.5,
@@ -81,8 +81,8 @@ describe('calculateDistance', () => {
 
 describe('validation helpers', () => {
   it('accepts valid emails and rejects malformed ones', () => {
-    expect(validateEmail('driver@chargeease.test')).toBe(true);
-    expect(validateEmail('driver@chargeease')).toBe(false);
+    expect(validateEmail('driver@afterglow.test')).toBe(true);
+    expect(validateEmail('driver@afterglow')).toBe(false);
     expect(validateEmail('not-an-email')).toBe(false);
   });
 

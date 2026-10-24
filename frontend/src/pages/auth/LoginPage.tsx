@@ -16,7 +16,7 @@ const loginSchema = z.object({
   rememberMe: z.boolean().optional(),
 });
 
-const DEMO_EMAIL = 'demo@chargeease.test';
+const DEMO_EMAIL = 'demo@afterglow.test';
 const DEMO_PASSWORD = 'Demo1234!';
 
 const LoginPage: React.FC = () => {
@@ -90,7 +90,7 @@ const LoginPage: React.FC = () => {
               </p>
               <div className="mt-8 flex items-center gap-2 text-xs text-deep-ink-muted">
                 <ShieldCheck className="h-4 w-4 text-brand" aria-hidden="true" />
-                Demo session — no password leaves this browser.
+                Signed in with a secure, HttpOnly session cookie.
               </div>
             </div>
           </div>
@@ -178,8 +178,8 @@ const LoginPage: React.FC = () => {
                 Demo account
               </p>
               <p className="mt-2 text-xs leading-relaxed text-ink-muted">
-                This build signs in locally with any valid email and a 6+ character password. Use the
-                seeded details to see the account pages populated.
+                The seeded demo account signs in against your local Afterglow API and stores its
+                bookings, wallet and sessions in the SQLite database.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button variant="ghost" size="sm" onClick={fillDemo} type="button">
@@ -190,12 +190,14 @@ const LoginPage: React.FC = () => {
                 </Button>
               </div>
               <p className="mt-3 font-mono text-[0.7rem] text-ink-subtle">
-                demo@chargeease.test · Demo1234!
+                <span>demo@afterglow.test</span>
+                <span aria-hidden="true"> · </span>
+                <span>Demo1234!</span>
               </p>
             </div>
 
             <p className="mt-6 text-sm text-ink-muted">
-              New to ChargeEase?{' '}
+              New to Afterglow?{' '}
               <Link
                 to="/signup"
                 className="font-semibold text-brand transition-colors hover:text-brand-strong"

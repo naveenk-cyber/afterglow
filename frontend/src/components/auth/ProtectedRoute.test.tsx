@@ -27,6 +27,7 @@ function renderGuard() {
 beforeEach(() => {
   vi.restoreAllMocks();
   localStorage.clear();
+  tokenStore.clear();
 });
 
 describe('ProtectedRoute', () => {
@@ -53,13 +54,14 @@ describe('ProtectedRoute', () => {
 
     renderGuard();
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+    expect(tokenStore.get()).toBeNull();
     expect(localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)).toBeNull();
   });
 
   it('keeps the stored token when the API is simply unreachable', async () => {
     tokenStore.set('offline-token');
     vi.spyOn(authService, 'me').mockRejectedValue(
-      new ApiError('Could not reach the ChargeEase API.', 'NETWORK_ERROR', 0),
+      new ApiError('Could not reach the Afterglow API.', 'NETWORK_ERROR', 0),
     );
 
     renderGuard();

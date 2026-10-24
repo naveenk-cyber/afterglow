@@ -28,6 +28,9 @@ backend/data/
 *.log
 *.pid
 
+# Local audit screenshots (not part of the app)
+screenshots/
+
 # Local agent/tool state
 .freebuff/
 

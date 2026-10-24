@@ -41,7 +41,9 @@ function createApp(db) {
         if (config.corsOrigins.includes(origin)) return callback(null, true);
         return callback(null, false);
       },
-      credentials: false,
+      // Required for the HttpOnly session cookie when the frontend is served
+      // from a different origin than the API (e.g. VITE_API_URL is absolute).
+      credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
     }),

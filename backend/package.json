@@ -2,7 +2,7 @@
   "name": "chargeease-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "ChargeEase API — Express + SQLite (node:sqlite), local-first and free to run.",
+  "description": "Afterglow API — Express + SQLite (node:sqlite), local-first and free to run.",
   "main": "server.js",
   "engines": {
     "node": ">=22.5.0"

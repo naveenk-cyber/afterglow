@@ -106,6 +106,51 @@ test('protected routes require a valid token and logout revokes sessions', async
   assert.equal(afterLogout.status, 401, 'revoked session must be rejected');
 });
 
+test('browser cookie sessions authenticate, survive requests, and are cleared by logout', async (t) => {
+  const client = await startTestServer();
+  t.after(() => client.close());
+
+  const signupRes = await fetch(`${client.baseUrl}/api/v1/auth/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      firstName: 'Cookie',
+      lastName: 'Driver',
+      email: 'cookie@example.test',
+      password: 'Passw0rd!',
+      confirmPassword: 'Passw0rd!',
+    }),
+  });
+  assert.equal(signupRes.status, 201);
+
+  const cookieHeader = signupRes.headers.get('set-cookie') || '';
+  assert.match(cookieHeader, /chargeease_session=/);
+  assert.match(cookieHeader, /HttpOnly/i, 'the browser token must not be readable by JavaScript');
+  assert.match(cookieHeader, /SameSite=Lax/i);
+  const cookie = cookieHeader.split(';')[0];
+
+  // No Authorization header: the cookie alone must authenticate the request.
+  const me = await fetch(`${client.baseUrl}/api/v1/auth/me`, {
+    headers: { Cookie: cookie },
+  });
+  assert.equal(me.status, 200);
+  const meBody = await me.json();
+  assert.equal(meBody.data.user.email, 'cookie@example.test');
+
+  const logout = await fetch(`${client.baseUrl}/api/v1/auth/logout`, {
+    method: 'POST',
+    headers: { Cookie: cookie },
+  });
+  assert.equal(logout.status, 200);
+  const cleared = logout.headers.get('set-cookie') || '';
+  assert.match(cleared, /chargeease_session=;/, 'logout must expire the cookie');
+
+  const afterLogout = await fetch(`${client.baseUrl}/api/v1/auth/me`, {
+    headers: { Cookie: cookie },
+  });
+  assert.equal(afterLogout.status, 401, 'the revoked cookie must not authenticate again');
+});
+
 test('password reset token works once and revokes existing sessions', async (t) => {
   const client = await startTestServer();
   t.after(() => client.close());
@@ -142,7 +187,7 @@ test('forgot-password does not reveal whether an account exists', async (t) => {
   const client = await startTestServer();
   t.after(() => client.close());
 
-  const known = await client.post('/auth/forgot-password', { email: 'demo@chargeease.test' });
+  const known = await client.post('/auth/forgot-password', { email: 'demo@afterglow.test' });
   const unknown = await client.post('/auth/forgot-password', { email: 'ghost@example.test' });
   assert.equal(known.status, 200);
   assert.equal(unknown.status, 200);

@@ -1,6 +1,6 @@
-# ChargeEase — CASE Documentation
+# Afterglow — CASE Documentation
 
-Software-engineering artefacts for the ChargeEase EV charging-station finder.
+Software-engineering artefacts for the Afterglow EV charging-station finder.
 Everything in this folder describes the code that is actually in this repository:
 every endpoint, table, screen and test named below exists in the tree today.
 

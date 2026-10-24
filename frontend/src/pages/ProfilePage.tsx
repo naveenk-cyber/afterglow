@@ -1,580 +1,732 @@
-
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import React, { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Car,
-  CreditCard,
+  AlertCircle,
   Bell,
-  Shield,
-  Edit3,
+  Car,
+  CheckCircle2,
+  CreditCard,
+  Heart,
+  LogOut,
+  Mail,
+  Plus,
   Save,
-  X,
-  Camera,
+  ShieldCheck,
+  Trash2,
+  User as UserIcon,
   Zap,
-  Calendar,
-  Award,
-  TrendingUp,
-  Battery,
-  Clock,
-  DollarSign
 } from 'lucide-react';
+import PageHero from '../components/layout/PageHero';
+import Breadcrumbs from '../components/ui/Breadcrumbs';
+import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
+import ButtonLink from '../components/ui/ButtonLink';
+import Checkbox from '../components/ui/Checkbox';
+import EmptyState from '../components/ui/EmptyState';
+import { useAuth } from '../hooks/useAuth';
+import { useFavorites } from '../hooks/useFavorites';
+import { useRecentlyViewed } from '../hooks/useRecentlyViewed';
+import { userService } from '../services/api';
+import type { Vehicle } from '../types';
+import { VALIDATION_RULES } from '../utils/constants';
 
-const profileSchema = z.object({
-  firstName: z.string().min(2, 'First name must be at least 2 characters'),
-  lastName: z.string().min(2, 'Last name must be at least 2 characters'),
-  email: z.string().email('Please enter a valid email address'),
-  phone: z.string().min(10, 'Please enter a valid phone number').optional(),
-  address: z.string().min(5, 'Please enter a valid address').optional(),
-  vehicleModel: z.string().optional(),
-  vehicleYear: z.string().optional(),
-  batteryCapacity: z.string().optional(),
-});
+const CONNECTORS = ['J1772', 'CCS', 'CHAdeMO', 'Tesla', 'Type 2'];
 
-type ProfileForm = z.infer<typeof profileSchema>;
+type TabId = 'profile' | 'vehicles' | 'preferences' | 'privacy';
+
+const TABS: { id: TabId; label: string; icon: typeof UserIcon }[] = [
+  { id: 'profile', label: 'Profile', icon: UserIcon },
+  { id: 'vehicles', label: 'Vehicles', icon: Car },
+  { id: 'preferences', label: 'Preferences', icon: Bell },
+  { id: 'privacy', label: 'Data & privacy', icon: ShieldCheck },
+];
+
+const inputClass =
+  'h-11 w-full rounded-control border border-line bg-surface-muted px-3.5 text-sm text-ink ' +
+  'placeholder:text-ink-subtle transition-colors hover:border-line-strong focus:border-brand ' +
+  'focus:outline-none focus:ring-2 focus:ring-brand/25 disabled:cursor-not-allowed disabled:opacity-60';
+
+const labelClass = 'mb-1.5 block text-sm font-medium text-ink';
 
 const ProfilePage: React.FC = () => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState('profile');
-  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+  const { user, updateUser, refreshUser, logout } = useAuth();
+  const {
+    favorites: favouriteIds,
+    stations: favouriteStations,
+    isLoading: favouritesLoading,
+    removeFavorite,
+  } = useFavorites();
+  const { ids: recentIds, clearRecent } = useRecentlyViewed();
 
-  // Mock user data - replace with actual user data
-  const mockUser = {
-    id: '1',
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john.doe@example.com',
-    phone: '+1 (555) 123-4567',
-    address: '123 Electric Ave, San Francisco, CA 94102',
-    avatar: null,
-    memberSince: '2023-01-15',
-    vehicleModel: 'Tesla Model 3',
-    vehicleYear: '2023',
-    batteryCapacity: '75 kWh',
-    totalSessions: 156,
-    totalEnergy: 2847,
-    totalSavings: 1234,
-    carbonOffset: 892,
+  const [activeTab, setActiveTab] = useState<TabId>('profile');
+  const [name, setName] = useState(user?.name ?? '');
+  const [phone, setPhone] = useState(user?.phone ?? '');
+  const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
+  const [profileSaved, setProfileSaved] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavingVehicle, setIsSavingVehicle] = useState(false);
+
+  const [vehicleDraft, setVehicleDraft] = useState({
+    make: '',
+    model: '',
+    year: String(new Date().getFullYear()),
+    batteryCapacity: '75',
+    estimatedRange: '300',
+  });
+  const [vehicleConnectors, setVehicleConnectors] = useState<string[]>(['CCS']);
+  const [vehicleError, setVehicleError] = useState('');
+
+  const [prefsSaved, setPrefsSaved] = useState('');
+  const [historyMessage, setHistoryMessage] = useState('');
+
+  const vehicles = useMemo(() => user?.vehicles ?? [], [user]);
+  const preferences = user?.preferences ?? {
+    units: 'imperial' as const,
+    language: 'en',
+    notifications: { email: true, push: false, sms: false },
   };
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-  } = useForm<ProfileForm>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: mockUser,
+  if (!user) return null;
+
+  const initials = user.name
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  const memberSince = new Date(user.createdAt).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
   });
 
-  const stats = [
-    {
-      icon: Zap,
-      label: 'Charging Sessions',
-      value: mockUser.totalSessions.toString(),
-      change: '+12%',
-      color: 'from-blue-500 to-cyan-500'
-    },
-    {
-      icon: Battery,
-      label: 'Energy Consumed',
-      value: `${mockUser.totalEnergy} kWh`,
-      change: '+8%',
-      color: 'from-green-500 to-emerald-500'
-    },
-    {
-      icon: DollarSign,
-      label: 'Money Saved',
-      value: `$${mockUser.totalSavings}`,
-      change: '+15%',
-      color: 'from-purple-500 to-pink-500'
-    },
-    {
-      icon: Award,
-      label: 'Carbon Offset',
-      value: `${mockUser.carbonOffset} lbs`,
-      change: '+22%',
-      color: 'from-brand to-brand-strong'
-    },
-  ];
+  const saveProfile = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const errors: Record<string, string> = {};
+    if (name.trim().length < VALIDATION_RULES.NAME_MIN_LENGTH) {
+      errors.name = 'Add your full name before saving.';
+    }
+    if (phone.trim() && !VALIDATION_RULES.PHONE.test(phone.trim())) {
+      errors.phone = 'Use digits, spaces and an optional leading +.';
+    }
+    setProfileErrors(errors);
+    setProfileSaved('');
+    if (Object.keys(errors).length > 0) return;
 
-  const tabs = [
-    { id: 'profile', label: 'Profile', icon: User },
-    { id: 'vehicle', label: 'Vehicle', icon: Car },
-    { id: 'billing', label: 'Billing', icon: CreditCard },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'security', label: 'Security', icon: Shield },
-  ];
-
-  const onSubmit = async (data: ProfileForm) => {
-    setIsLoading(true);
+    setIsSavingProfile(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      console.log('Profile updated:', data);
-      setIsEditing(false);
+      await updateUser({ name: name.trim(), phone: phone.trim() });
+      setProfileSaved('Profile updated.');
     } catch (error) {
-      console.error('Failed to update profile:', error);
+      setProfileSaved(
+        error instanceof Error ? error.message : 'Profile could not be saved. Try again.',
+      );
     } finally {
-      setIsLoading(false);
+      setIsSavingProfile(false);
     }
   };
 
-  const handleCancel = () => {
-    reset();
-    setIsEditing(false);
+  const addVehicle = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const year = Number(vehicleDraft.year);
+    const batteryCapacity = Number(vehicleDraft.batteryCapacity);
+    const estimatedRange = Number(vehicleDraft.estimatedRange);
+
+    if (!vehicleDraft.make.trim() || !vehicleDraft.model.trim()) {
+      setVehicleError('Add the vehicle make and model.');
+      return;
+    }
+    if (!Number.isInteger(year) || year < 1990 || year > 2100) {
+      setVehicleError('Enter a model year between 1990 and 2100.');
+      return;
+    }
+    if (!Number.isFinite(batteryCapacity) || batteryCapacity <= 0 || batteryCapacity > 500) {
+      setVehicleError('Battery capacity should be between 1 and 500 kWh.');
+      return;
+    }
+    if (vehicleConnectors.length === 0) {
+      setVehicleError('Pick at least one connector your car can use.');
+      return;
+    }
+
+    setIsSavingVehicle(true);
+    setVehicleError('');
+    try {
+      await userService.createVehicle({
+        make: vehicleDraft.make.trim(),
+        model: vehicleDraft.model.trim(),
+        year,
+        batteryCapacity,
+        estimatedRange: Number.isFinite(estimatedRange) && estimatedRange > 0 ? estimatedRange : 0,
+        connectorTypes: vehicleConnectors,
+        isDefault: vehicles.length === 0,
+      } as Omit<Vehicle, 'id'>);
+      await refreshUser();
+      setVehicleDraft({
+        make: '',
+        model: '',
+        year: String(new Date().getFullYear()),
+        batteryCapacity: '75',
+        estimatedRange: '300',
+      });
+      setVehicleConnectors(['CCS']);
+    } catch (error) {
+      setVehicleError(
+        error instanceof Error ? error.message : 'The vehicle could not be saved. Try again.',
+      );
+    } finally {
+      setIsSavingVehicle(false);
+    }
+  };
+
+  const removeVehicle = async (id: string) => {
+    try {
+      await userService.deleteVehicle(id);
+      await refreshUser();
+    } catch (error) {
+      setVehicleError(
+        error instanceof Error ? error.message : 'The vehicle could not be removed. Try again.',
+      );
+    }
+  };
+
+  const makeDefault = async (id: string) => {
+    try {
+      await userService.updateVehicle(id, { isDefault: true });
+      await refreshUser();
+    } catch (error) {
+      setVehicleError(
+        error instanceof Error ? error.message : 'The default vehicle could not be changed.',
+      );
+    }
+  };
+
+  const setPreference = async (patch: {
+    units?: 'metric' | 'imperial';
+    notifications?: Partial<{ email: boolean; push: boolean; sms: boolean }>;
+  }) => {
+    try {
+      await updateUser({
+        preferences: {
+          ...preferences,
+          ...patch,
+          notifications: { ...preferences.notifications, ...(patch.notifications ?? {}) },
+        },
+      });
+      setPrefsSaved('Preferences saved to your account.');
+    } catch (error) {
+      setPrefsSaved(
+        error instanceof Error ? error.message : 'Preferences could not be saved. Try again.',
+      );
+    }
+  };
+
+  const handleSignOut = async () => {
+    await logout();
+    navigate('/');
   };
 
   return (
-    <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass-card p-8 mb-8"
-        >
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between">
-            <div className="flex items-center space-x-6 mb-6 md:mb-0">
-              {/* Avatar */}
-              <div className="relative">
-                <div className="w-24 h-24 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center">
-                  {mockUser.avatar ? (
-                    <img
-                      src={mockUser.avatar}
-                      alt={`${mockUser.firstName} ${mockUser.lastName}`}
-                      className="w-24 h-24 rounded-2xl object-cover"
-                    />
-                  ) : (
-                    <User className="w-12 h-12 text-white" />
-                  )}
-                </div>
-                <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  className="absolute -bottom-2 -right-2 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white hover:bg-blue-600 transition-colors"
-                >
-                  <Camera className="w-4 h-4" />
-                </motion.button>
-              </div>
+    <div>
+      <PageHero
+        eyebrow="Account"
+        title="Your profile, vehicles and preferences"
+        description="Profile, vehicles and preferences are stored with your Afterglow account. Passwords are hashed on the server and never returned to this page."
+      />
 
-              {/* User Info */}
-              <div>
-                <h1 className="text-3xl font-bold text-white mb-2">
-                  {mockUser.firstName} {mockUser.lastName}
-                </h1>
-                <p className="text-gray-400 mb-1">{mockUser.email}</p>
-                <div className="flex items-center space-x-4 text-sm text-gray-500">
-                  <div className="flex items-center space-x-1">
-                    <Calendar className="w-4 h-4" />
-                    <span>Member since {new Date(mockUser.memberSince).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <MapPin className="w-4 h-4" />
-                    <span>San Francisco, CA</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+      <div className="mx-auto max-w-[1280px] px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+        <Breadcrumbs items={[{ label: 'Home', to: '/' }, { label: 'Profile' }]} />
 
-            {/* Action Buttons */}
-            <div className="flex space-x-3">
-              {!isEditing ? (
-                <Button
-                  variant="glass"
-                  onClick={() => setIsEditing(true)}
-                  leftIcon={<Edit3 className="w-4 h-4" />}
-                >
-                  Edit Profile
-                </Button>
-              ) : (
-                <div className="flex space-x-2">
-                  <Button
-                    variant="ghost"
-                    onClick={handleCancel}
-                    leftIcon={<X className="w-4 h-4" />}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="gradient"
-                    onClick={handleSubmit(onSubmit)}
-                    isLoading={isLoading}
-                    leftIcon={<Save className="w-4 h-4" />}
-                  >
-                    Save Changes
-                  </Button>
-                </div>
-              )}
+        <section className="mt-6 flex flex-col gap-5 rounded-panel border border-line bg-surface p-5 shadow-card sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div className="flex items-center gap-4">
+            <span className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-brand/25 bg-brand-soft text-xl font-semibold text-brand-soft-ink">
+              {initials || 'CE'}
+            </span>
+            <div className="min-w-0">
+              <h2 className="ev-title text-ink">{user.name}</h2>
+              <p className="mt-1 flex items-center gap-1.5 truncate text-sm text-ink-muted">
+                <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                {user.email}
+              </p>
+              <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-subtle">
+                <span>Member since {memberSince}</span>
+                <span className="h-1 w-1 rounded-full bg-line-strong" aria-hidden="true" />
+                <span>{vehicles.length} vehicle{vehicles.length === 1 ? '' : 's'}</span>
+              </p>
             </div>
           </div>
-        </motion.div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={user.membershipLevel === 'Free' ? 'neutral' : 'brand'}>
+              {user.membershipLevel} plan
+            </Badge>
+            <ButtonLink to="/membership" variant="ghost" size="sm">
+              Manage plan
+            </ButtonLink>
+          </div>
+        </section>
 
-        {/* Stats Grid */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
-        >
-          {stats.map((stat, index) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.1 + index * 0.1 }}
-              whileHover={{ scale: 1.02, y: -2 }}
-              className="glass-card p-6"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${stat.color} p-3`}>
-                  <stat.icon className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex items-center space-x-1 text-green-400 text-sm">
-                  <TrendingUp className="w-4 h-4" />
-                  <span>{stat.change}</span>
-                </div>
-              </div>
-              <div className="text-2xl font-bold text-white mb-1">{stat.value}</div>
-              <div className="text-sm text-gray-400">{stat.label}</div>
-            </motion.div>
-          ))}
-        </motion.div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar Navigation */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-            className="lg:col-span-1"
+        <div className="mt-6 grid gap-6 lg:grid-cols-[220px_1fr] lg:items-start">
+          <nav
+            aria-label="Profile sections"
+            className="grid grid-cols-2 gap-1 rounded-card border border-line bg-surface p-1.5 sm:grid-cols-4 lg:grid-cols-1"
           >
-            <div className="glass-card p-6">
-              <nav className="space-y-2">
-                {tabs.map((tab) => (
-                  <motion.button
-                    key={tab.id}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left transition-all duration-300 ${
-                      activeTab === tab.id
-                        ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-white border border-blue-500/30'
-                        : 'text-gray-400 hover:text-white hover:bg-white/5'
-                    }`}
+            {TABS.map((tab) => {
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  aria-current={active ? 'page' : undefined}
+                  className={`flex shrink-0 items-center gap-2 rounded-control px-3 py-2 text-sm font-medium transition-colors lg:w-full ${
+                    active
+                      ? 'bg-brand-soft text-brand-soft-ink'
+                      : 'text-ink-muted hover:bg-surface-muted hover:text-ink'
+                  }`}
+                >
+                  <tab.icon className="h-4 w-4" aria-hidden="true" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="rounded-panel border border-line bg-surface p-5 shadow-card sm:p-6">
+            {activeTab === 'profile' && (
+              <form onSubmit={saveProfile} noValidate>
+                <h2 className="ev-card-title text-ink">Personal information</h2>
+                <p className="mt-1 text-sm leading-relaxed text-ink-muted">
+                  The email address identifies your session and cannot be changed here.
+                </p>
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="profile-name" className={labelClass}>
+                      Full name
+                    </label>
+                    <input
+                      id="profile-name"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      className={inputClass}
+                      autoComplete="name"
+                      aria-invalid={Boolean(profileErrors.name)}
+                    />
+                    {profileErrors.name && (
+                      <p role="alert" className="mt-1.5 flex items-center gap-1.5 text-xs text-error-ink">
+                        <AlertCircle className="h-3 w-3" aria-hidden="true" />
+                        {profileErrors.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="profile-phone" className={labelClass}>
+                      Phone <span className="font-normal text-ink-subtle">(optional)</span>
+                    </label>
+                    <input
+                      id="profile-phone"
+                      value={phone}
+                      onChange={(event) => setPhone(event.target.value)}
+                      className={inputClass}
+                      autoComplete="tel"
+                      placeholder="+1 512 555 0134"
+                      aria-invalid={Boolean(profileErrors.phone)}
+                    />
+                    {profileErrors.phone && (
+                      <p role="alert" className="mt-1.5 flex items-center gap-1.5 text-xs text-error-ink">
+                        <AlertCircle className="h-3 w-3" aria-hidden="true" />
+                        {profileErrors.phone}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="profile-email" className={labelClass}>
+                      Email
+                    </label>
+                    <input id="profile-email" value={user.email} disabled className={inputClass} />
+                  </div>
+
+                  <div>
+                    <label htmlFor="profile-units" className={labelClass}>
+                      Distance units
+                    </label>
+                    <select
+                      id="profile-units"
+                      value={preferences.units}
+                      onChange={(event) =>
+                        setPreference({ units: event.target.value as 'metric' | 'imperial' })
+                      }
+                      className={inputClass}
+                    >
+                      <option value="imperial">Miles</option>
+                      <option value="metric">Kilometres</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex flex-wrap items-center gap-3">
+                  <Button
+                    type="submit"
+                    isLoading={isSavingProfile}
+                    leftIcon={<Save className="h-4 w-4" />}
                   >
-                    <tab.icon className="w-5 h-5" />
-                    <span className="font-medium">{tab.label}</span>
-                  </motion.button>
-                ))}
-              </nav>
-            </div>
-          </motion.div>
-
-          {/* Main Content */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3 }}
-            className="lg:col-span-3"
-          >
-            <div className="glass-card p-8">
-              {activeTab === 'profile' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-white mb-6">Personal Information</h2>
-                  
-                  <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          First Name
-                        </label>
-                        <Input
-                          {...register('firstName')}
-                          disabled={!isEditing}
-                          className={`${!isEditing ? 'bg-gray-800/50' : ''}`}
-                        />
-                        {errors.firstName && (
-                          <p className="mt-1 text-sm text-red-400">{errors.firstName.message}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Last Name
-                        </label>
-                        <Input
-                          {...register('lastName')}
-                          disabled={!isEditing}
-                          className={`${!isEditing ? 'bg-gray-800/50' : ''}`}
-                        />
-                        {errors.lastName && (
-                          <p className="mt-1 text-sm text-red-400">{errors.lastName.message}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Email Address
-                      </label>
-                      <div className="relative">
-                        <Input
-                          {...register('email')}
-                          disabled={!isEditing}
-                          className={`pl-12 ${!isEditing ? 'bg-gray-800/50' : ''}`}
-                        />
-                        <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      </div>
-                      {errors.email && (
-                        <p className="mt-1 text-sm text-red-400">{errors.email.message}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Phone Number
-                      </label>
-                      <div className="relative">
-                        <Input
-                          {...register('phone')}
-                          disabled={!isEditing}
-                          className={`pl-12 ${!isEditing ? 'bg-gray-800/50' : ''}`}
-                        />
-                        <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      </div>
-                      {errors.phone && (
-                        <p className="mt-1 text-sm text-red-400">{errors.phone.message}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Address
-                      </label>
-                      <div className="relative">
-                        <Input
-                          {...register('address')}
-                          disabled={!isEditing}
-                          className={`pl-12 ${!isEditing ? 'bg-gray-800/50' : ''}`}
-                        />
-                        <MapPin className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      </div>
-                      {errors.address && (
-                        <p className="mt-1 text-sm text-red-400">{errors.address.message}</p>
-                      )}
-                    </div>
-                  </form>
+                    Save changes
+                  </Button>
+                  <span className="text-xs text-ink-subtle">Saved to your account.</span>
                 </div>
-              )}
 
-              {activeTab === 'vehicle' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-white mb-6">Vehicle Information</h2>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Vehicle Model
-                      </label>
-                      <div className="relative">
-                        <Input
-                          {...register('vehicleModel')}
-                          disabled={!isEditing}
-                          className={`pl-12 ${!isEditing ? 'bg-gray-800/50' : ''}`}
-                        />
-                        <Car className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      </div>
-                    </div>
+                {profileSaved && (
+                  <p role="status" className="mt-4 flex items-center gap-2 text-xs text-success-ink">
+                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    {profileSaved}
+                  </p>
+                )}
+              </form>
+            )}
 
+            {activeTab === 'vehicles' && (
+              <div>
+                <h2 className="ev-card-title text-ink">Your vehicles</h2>
+                <p className="mt-1 text-sm leading-relaxed text-ink-muted">
+                  Vehicle details are used to explain connector compatibility. They are stored with
+                  this session, not sent to an operator.
+                </p>
+
+                {vehicles.length === 0 ? (
+                  <EmptyState
+                    icon={Car}
+                    title="No vehicle added yet"
+                    description="Add the car you drive so the connector guide can be read against your own port."
+                    className="mt-5"
+                  />
+                ) : (
+                  <ul className="mt-5 space-y-3">
+                    {vehicles.map((vehicle) => (
+                      <li
+                        key={vehicle.id}
+                        className="flex flex-col gap-3 rounded-card border border-line bg-surface-muted p-4 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink">
+                            {vehicle.make} {vehicle.model}
+                            <span className="font-normal text-ink-subtle">{vehicle.year}</span>
+                            {vehicle.isDefault && <Badge tone="brand">Default</Badge>}
+                          </p>
+                          <p className="mt-1 text-xs text-ink-muted">
+                            {vehicle.batteryCapacity} kWh battery
+                            {vehicle.estimatedRange > 0 && ` · ${vehicle.estimatedRange} mi range`}
+                            {vehicle.connectorTypes.length > 0 &&
+                              ` · ${vehicle.connectorTypes.join(', ')}`}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          {!vehicle.isDefault && (
+                            <Button variant="ghost" size="sm" onClick={() => void makeDefault(vehicle.id)}>
+                              Make default
+                            </Button>
+                          )}
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => void removeVehicle(vehicle.id)}
+                            leftIcon={<Trash2 className="h-3.5 w-3.5" />}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <form onSubmit={addVehicle} className="mt-6 border-t border-line pt-5">
+                  <h3 className="ev-card-title text-ink">Add a vehicle</h3>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Year
+                      <label htmlFor="vehicle-make" className={labelClass}>
+                        Make
                       </label>
-                      <Input
-                        {...register('vehicleYear')}
-                        disabled={!isEditing}
-                        className={`${!isEditing ? 'bg-gray-800/50' : ''}`}
+                      <input
+                        id="vehicle-make"
+                        value={vehicleDraft.make}
+                        onChange={(event) =>
+                          setVehicleDraft({ ...vehicleDraft, make: event.target.value })
+                        }
+                        className={inputClass}
+                        placeholder="Hyundai"
                       />
                     </div>
-
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Battery Capacity
+                      <label htmlFor="vehicle-model" className={labelClass}>
+                        Model
                       </label>
-                      <div className="relative">
-                        <Input
-                          {...register('batteryCapacity')}
-                          disabled={!isEditing}
-                          className={`pl-12 ${!isEditing ? 'bg-gray-800/50' : ''}`}
-                        />
-                        <Battery className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      </div>
+                      <input
+                        id="vehicle-model"
+                        value={vehicleDraft.model}
+                        onChange={(event) =>
+                          setVehicleDraft({ ...vehicleDraft, model: event.target.value })
+                        }
+                        className={inputClass}
+                        placeholder="Ioniq 5"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="vehicle-year" className={labelClass}>
+                        Year
+                      </label>
+                      <input
+                        id="vehicle-year"
+                        inputMode="numeric"
+                        value={vehicleDraft.year}
+                        onChange={(event) =>
+                          setVehicleDraft({ ...vehicleDraft, year: event.target.value })
+                        }
+                        className={inputClass}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="vehicle-battery" className={labelClass}>
+                        Battery capacity (kWh)
+                      </label>
+                      <input
+                        id="vehicle-battery"
+                        inputMode="decimal"
+                        value={vehicleDraft.batteryCapacity}
+                        onChange={(event) =>
+                          setVehicleDraft({ ...vehicleDraft, batteryCapacity: event.target.value })
+                        }
+                        className={inputClass}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="vehicle-range" className={labelClass}>
+                        Estimated range (mi)
+                      </label>
+                      <input
+                        id="vehicle-range"
+                        inputMode="decimal"
+                        value={vehicleDraft.estimatedRange}
+                        onChange={(event) =>
+                          setVehicleDraft({ ...vehicleDraft, estimatedRange: event.target.value })
+                        }
+                        className={inputClass}
+                      />
                     </div>
                   </div>
 
-                  {/* Vehicle Stats */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
-                    <div className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/20 rounded-xl p-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                          <Zap className="w-5 h-5 text-blue-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-400">Avg. Efficiency</p>
-                          <p className="text-lg font-semibold text-white">4.2 mi/kWh</p>
-                        </div>
-                      </div>
+                  <fieldset className="mt-4">
+                    <legend className="mb-2 text-sm font-medium text-ink">Connector types</legend>
+                    <div className="flex flex-wrap gap-2">
+                      {CONNECTORS.map((connector) => {
+                        const active = vehicleConnectors.includes(connector);
+                        return (
+                          <button
+                            key={connector}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() =>
+                              setVehicleConnectors((current) =>
+                                current.includes(connector)
+                                  ? current.filter((item) => item !== connector)
+                                  : [...current, connector],
+                              )
+                            }
+                            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                              active
+                                ? 'border-brand bg-brand-soft text-brand-soft-ink'
+                                : 'border-line text-ink-muted hover:border-line-strong hover:text-ink'
+                            }`}
+                          >
+                            {connector}
+                          </button>
+                        );
+                      })}
                     </div>
+                  </fieldset>
 
-                    <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-xl p-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
-                          <Clock className="w-5 h-5 text-green-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-400">Avg. Charge Time</p>
-                          <p className="text-lg font-semibold text-white">45 min</p>
-                        </div>
-                      </div>
-                    </div>
+                  {vehicleError && (
+                    <p role="alert" className="mt-3 flex items-center gap-1.5 text-xs text-error-ink">
+                      <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                      {vehicleError}
+                    </p>
+                  )}
 
-                    <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-xl p-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
-                          <TrendingUp className="w-5 h-5 text-purple-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-400">Range</p>
-                          <p className="text-lg font-semibold text-white">315 miles</p>
-                        </div>
+                  <Button
+                    type="submit"
+                    className="mt-4"
+                    isLoading={isSavingVehicle}
+                    leftIcon={<Plus className="h-4 w-4" />}
+                  >
+                    Add vehicle
+                  </Button>
+                </form>
+              </div>
+            )}
+
+            {activeTab === 'preferences' && (
+              <div>
+                <h2 className="ev-card-title text-ink">Notifications</h2>
+                <p className="mt-1 text-sm leading-relaxed text-ink-muted">
+                  Delivery providers are not connected in this build. The switches are saved to
+                  your account so the preference is kept, but no messages are sent.
+                </p>
+
+                <div className="mt-5 divide-y divide-line rounded-card border border-line">
+                  {[
+                    {
+                      key: 'email' as const,
+                      label: 'Email updates',
+                      hint: 'Booking confirmations and account notices.',
+                    },
+                    {
+                      key: 'push' as const,
+                      label: 'Push alerts',
+                      hint: 'Reminders before a planned charging session.',
+                    },
+                    {
+                      key: 'sms' as const,
+                      label: 'SMS alerts',
+                      hint: 'Only for time-sensitive changes. Never used for marketing.',
+                    },
+                  ].map((item) => (
+                    <div key={item.key} className="flex items-start justify-between gap-4 p-4">
+                      <div>
+                        <p className="text-sm font-medium text-ink">{item.label}</p>
+                        <p className="mt-0.5 text-xs leading-relaxed text-ink-muted">{item.hint}</p>
                       </div>
+                      <Checkbox
+                        checked={preferences.notifications[item.key]}
+                        onChange={(checked) => setPreference({ notifications: { [item.key]: checked } })}
+                      >
+                        <span className="sr-only">{item.label}</span>
+                      </Checkbox>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              )}
 
-              {activeTab === 'billing' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-white mb-6">Billing & Payment</h2>
-                  
-                  <div className="space-y-6">
-                    <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl p-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
-                            <CreditCard className="w-6 h-6 text-white" />
-                          </div>
-                          <div>
-                            <p className="text-white font-semibold">•••• •••• •••• 4242</p>
-                            <p className="text-gray-400 text-sm">Expires 12/25</p>
-                          </div>
-                        </div>
-                        <Button variant="ghost" size="sm">
-                          Edit
-                        </Button>
-                      </div>
-                    </div>
+                {prefsSaved && (
+                  <p role="status" className="mt-4 flex items-center gap-2 text-xs text-success-ink">
+                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    {prefsSaved}
+                  </p>
+                )}
+              </div>
+            )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="glass-card p-6">
-                        <h3 className="font-semibold text-white mb-4">Current Balance</h3>
-                        <div className="text-3xl font-bold text-green-400 mb-2">$127.50</div>
-                        <p className="text-gray-400 text-sm">Available for charging</p>
-                        <Button variant="gradient" size="sm" className="mt-4">
-                          Add Funds
-                        </Button>
-                      </div>
+            {activeTab === 'privacy' && (
+              <div>
+                <h2 className="ev-card-title text-ink">What is stored, and where</h2>
+                <ul className="mt-4 space-y-3 text-sm leading-relaxed text-ink-muted">
+                  <li className="flex gap-2.5">
+                    <Zap className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden="true" />
+                    Your account record stores your name, email, phone, hashed password and
+                    preferences. The browser only holds the HttpOnly session cookie set by the API.
+                  </li>
+                  <li className="flex gap-2.5">
+                    <Heart className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden="true" />
+                    You have {favouriteIds.length} saved station
+                    {favouriteIds.length === 1 ? '' : 's'} and {recentIds.length} recently viewed
+                    station{recentIds.length === 1 ? '' : 's'} on this device.
+                  </li>
+                  <li className="flex gap-2.5">
+                    <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden="true" />
+                    No card details are collected. The wallet is a simulated ledger — see the wallet
+                    page for its transactions.
+                  </li>
+                </ul>
 
-                      <div className="glass-card p-6">
-                        <h3 className="font-semibold text-white mb-4">This Month</h3>
-                        <div className="text-3xl font-bold text-white mb-2">$89.32</div>
-                        <p className="text-gray-400 text-sm">Total spent</p>
-                        <Button variant="ghost" size="sm" className="mt-4">
-                          View Details
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
+                <div className="mt-5 flex flex-wrap gap-2.5">
+                  <Button
+                    variant="ghost"
+                    size="md"
+                    onClick={() => {
+                      clearRecent();
+                      setHistoryMessage('Recently viewed stations cleared on this device.');
+                    }}
+                  >
+                    Clear recently viewed
+                  </Button>
+                  <ButtonLink to="/wallet" variant="ghost" size="md">
+                    Open wallet
+                  </ButtonLink>
+                  <Button
+                    variant="destructive"
+                    size="md"
+                    onClick={handleSignOut}
+                    leftIcon={<LogOut className="h-4 w-4" />}
+                  >
+                    Sign out
+                  </Button>
                 </div>
-              )}
+                {historyMessage && (
+                  <p role="status" className="mt-3 text-xs text-success-ink">
+                    {historyMessage}
+                  </p>
+                )}
+                <p className="mt-5 rounded-control border border-line bg-surface-muted px-3 py-2.5 text-xs leading-relaxed text-ink-subtle">
+                  Signing out revokes the server session and clears it from this browser. Saved
+                  stations stay with your account.
+                </p>
+              </div>
+            )}
 
-              {activeTab === 'notifications' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-white mb-6">Notification Preferences</h2>
-                  
-                  <div className="space-y-4">
-                    {[
-                      { label: 'Charging session completed', description: 'Get notified when your vehicle is fully charged' },
-                      { label: 'Low battery alerts', description: 'Receive alerts when your vehicle battery is low' },
-                      { label: 'Nearby station updates', description: 'Get notified about new charging stations near you' },
-                      { label: 'Promotional offers', description: 'Receive exclusive deals and discounts' },
-                      { label: 'Weekly usage reports', description: 'Get weekly summaries of your charging activity' },
-                    ].map((item, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
-                        <div>
-                          <p className="text-white font-medium">{item.label}</p>
-                          <p className="text-gray-400 text-sm">{item.description}</p>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input type="checkbox" className="sr-only peer" defaultChecked={index < 3} />
-                          <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
-                        </label>
-                      </div>
-                    ))}
-                  </div>
+            <section
+              className="mt-6 border-t border-line pt-5"
+              aria-labelledby="saved-stations-heading"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 id="saved-stations-heading" className="ev-card-title flex items-center gap-2 text-ink">
+                    <Heart className="h-4 w-4 text-brand" aria-hidden="true" />
+                    Saved stations
+                  </h2>
+                  <p className="mt-1 text-xs text-ink-subtle">
+                    Stored with your account and available on every signed-in device.
+                  </p>
                 </div>
-              )}
+                <Badge tone="neutral">{favouriteStations.length}</Badge>
+              </div>
 
-              {activeTab === 'security' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-white mb-6">Security Settings</h2>
-                  
-                  <div className="space-y-6">
-                    <div className="glass-card p-6">
-                      <h3 className="font-semibold text-white mb-4">Password</h3>
-                      <p className="text-gray-400 text-sm mb-4">Last changed 3 months ago</p>
-                      <Button variant="ghost">Change Password</Button>
-                    </div>
-
-                    <div className="glass-card p-6">
-                      <h3 className="font-semibold text-white mb-4">Two-Factor Authentication</h3>
-                      <p className="text-gray-400 text-sm mb-4">Add an extra layer of security to your account</p>
-                      <Button variant="gradient">Enable 2FA</Button>
-                    </div>
-
-                    <div className="glass-card p-6">
-                      <h3 className="font-semibold text-white mb-4">Active Sessions</h3>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-                          <div>
-                            <p className="text-white font-medium">MacBook Pro - Chrome</p>
-                            <p className="text-gray-400 text-sm">San Francisco, CA • Current session</p>
-                          </div>
-                          <span className="text-green-400 text-sm">Active</span>
-                        </div>
-                        <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-                          <div>
-                            <p className="text-white font-medium">iPhone 14 - Safari</p>
-                            <p className="text-gray-400 text-sm">San Francisco, CA • 2 hours ago</p>
-                          </div>
-                          <Button variant="ghost" size="sm">Revoke</Button>
-                        </div>
+              {favouritesLoading ? (
+                <p className="mt-3 text-sm text-ink-muted">Loading saved stations…</p>
+              ) : favouriteStations.length === 0 ? (
+                <p className="mt-3 rounded-control border border-dashed border-line bg-surface-muted px-3 py-3 text-sm text-ink-muted">
+                  Nothing saved yet. Use the heart on a station card or the station page.
+                </p>
+              ) : (
+                <ul className="mt-3 divide-y divide-line rounded-card border border-line">
+                  {favouriteStations.map((station) => (
+                    <li
+                      key={station.id}
+                      className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <Link
+                          to={`/station/${station.id}`}
+                          className="block truncate text-sm font-medium text-ink underline-offset-2 hover:text-brand hover:underline"
+                        >
+                          {station.name}
+                        </Link>
+                        <p className="mt-0.5 truncate text-xs text-ink-subtle">
+                          {station.city || station.address}
+                        </p>
                       </div>
-                    </div>
-                  </div>
-                </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Remove ${station.name}`}
+                        onClick={() => void removeFavorite(station.id)}
+                      >
+                        Remove
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
               )}
-            </div>
-          </motion.div>
+            </section>
+          </div>
         </div>
       </div>
     </div>

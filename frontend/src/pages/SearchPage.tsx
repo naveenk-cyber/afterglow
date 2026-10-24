@@ -2,22 +2,32 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
+  ArrowRight,
   Heart,
   Info,
   List,
   Map as MapIcon,
   MapPin,
   RotateCcw,
+  Scale,
   SlidersHorizontal,
+  X,
 } from 'lucide-react';
 import PageHero from '../components/layout/PageHero';
 import SearchBar from '../components/home/SearchBar';
 import StationCard from '../components/station/StationCard';
 import StationMap from '../components/common/StationMap';
+import Breadcrumbs from '../components/ui/Breadcrumbs';
 import Button from '../components/ui/Button';
+import ButtonLink from '../components/ui/ButtonLink';
+import Checkbox from '../components/ui/Checkbox';
+import EmptyState from '../components/ui/EmptyState';
+import { StationCardSkeleton } from '../components/ui/Skeleton';
 import { stationService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useFavorites } from '../hooks/useFavorites';
+import { useRecentlyViewed } from '../hooks/useRecentlyViewed';
+import { useStationCatalog } from '../hooks/useStationCatalog';
 import type { ChargingSpeed, SearchFilters, SearchSort } from '../types';
 
 const PAGE_SIZE = 12;
@@ -26,6 +36,7 @@ const SORT_OPTIONS: { value: SearchSort; label: string }[] = [
   { value: 'price', label: 'Lowest price' },
   { value: 'rating', label: 'Best rated' },
   { value: 'speed', label: 'Fastest charging' },
+  { value: 'availability', label: 'Most connectors free' },
   { value: 'name', label: 'Name (A–Z)' },
 ];
 
@@ -42,6 +53,8 @@ const SearchPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { isAuthenticated } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { ids: recentIds, clearRecent } = useRecentlyViewed();
+  const { data: catalogData } = useStationCatalog();
 
   const [filters, setFilters] = useState<SearchFilters>(() => {
     const lat = Number(searchParams.get('lat'));
@@ -124,6 +137,13 @@ const SearchPage: React.FC = () => {
       else params.delete('speed');
       if (next.availability) params.set('available', '1');
       else params.delete('available');
+      if (next.location) {
+        params.set('lat', String(next.location.latitude));
+        params.set('lng', String(next.location.longitude));
+      } else {
+        params.delete('lat');
+        params.delete('lng');
+      }
       setSearchParams(params, { replace: true });
     },
     [searchParams, setSearchParams],
@@ -150,11 +170,101 @@ const SearchPage: React.FC = () => {
     setSearchParams(new URLSearchParams(), { replace: true });
   };
 
-  const handleFavorite = (stationId: string, name: string) => {
-    const saved = toggleFavorite(stationId);
-    setFavoriteMessage(
-      saved ? `${name} saved. Station added to your favourites.` : `${name} removed from favourites.`,
-    );
+  /** Apply one filter change and keep the URL shareable. */
+  const applyPatch = useCallback(
+    (patch: Partial<SearchFilters>) => {
+      const next = { ...filters, ...patch };
+      setFilters(next);
+      setPage(1);
+      syncParams(next);
+    },
+    [filters, syncParams],
+  );
+
+  const activeChips = useMemo(() => {
+    const chips: { key: string; label: string; remove: () => void }[] = [];
+    if (filters.query) {
+      chips.push({
+        key: 'query',
+        label: `“${filters.query}”`,
+        remove: () => applyPatch({ query: undefined }),
+      });
+    }
+    (filters.connectorTypes ?? []).forEach((type) => {
+      chips.push({
+        key: `connector-${type}`,
+        label: type,
+        remove: () =>
+          applyPatch({
+            connectorTypes: (filters.connectorTypes ?? []).filter((value) => value !== type),
+          }),
+      });
+    });
+    (filters.chargingSpeed ?? []).forEach((speed) => {
+      chips.push({
+        key: `speed-${speed}`,
+        label: speed,
+        remove: () =>
+          applyPatch({
+            chargingSpeed: (filters.chargingSpeed ?? []).filter((value) => value !== speed),
+          }),
+      });
+    });
+    (filters.amenities ?? []).forEach((amenity) => {
+      chips.push({
+        key: `amenity-${amenity}`,
+        label: amenity,
+        remove: () =>
+          applyPatch({
+            amenities: (filters.amenities ?? []).filter((value) => value !== amenity),
+          }),
+      });
+    });
+    if (filters.operators?.length) {
+      chips.push({
+        key: 'operator',
+        label: filters.operators[0],
+        remove: () => applyPatch({ operators: undefined }),
+      });
+    }
+    if (filters.availability) {
+      chips.push({
+        key: 'availability',
+        label: 'Available now',
+        remove: () => applyPatch({ availability: undefined }),
+      });
+    }
+    if (filters.location) {
+      chips.push({
+        key: 'location',
+        label: 'Within 25 mi',
+        remove: () => applyPatch({ location: undefined }),
+      });
+    }
+    return chips;
+  }, [filters, applyPatch]);
+
+  const recentStations = useMemo(() => {
+    const stations = catalogData?.stations ?? [];
+    return recentIds
+      .map((id) => stations.find((station) => station.id === id))
+      .filter((station): station is NonNullable<typeof station> => Boolean(station))
+      .slice(0, 4);
+  }, [catalogData, recentIds]);
+
+  const handleFavorite = async (stationId: string, name: string) => {
+    try {
+      const saved = await toggleFavorite(stationId);
+      setFavoriteMessage(
+        saved
+          ? `${name} saved. Station added to your favourites.`
+          : `${name} removed from favourites.`,
+      );
+    } catch (error) {
+      setFavoriteMessage(
+        error instanceof Error ? error.message : `Could not update ${name}. Try again.`,
+      );
+    }
   };
 
   const filterPanel = (
@@ -276,15 +386,14 @@ const SearchPage: React.FC = () => {
         </>
       )}
 
-      <label className="flex cursor-pointer items-center gap-2.5 text-sm text-ink-muted">
-        <input
-          type="checkbox"
-          checked={Boolean(filters.availability)}
-          onChange={(event) => updateFilters({ availability: event.target.checked || undefined })}
-          className="h-4 w-4 rounded border-line-strong bg-surface-muted accent-[color:var(--color-brand)]"
-        />
+      <Checkbox
+        checked={Boolean(filters.availability)}
+        onChange={(checked) => updateFilters({ availability: checked || undefined })}
+        ariaLabel="Available now"
+        hint="Only stations reporting at least one free connector."
+      >
         Available now
-      </label>
+      </Checkbox>
 
       <Button variant="ghost" size="sm" onClick={clearFilters} leftIcon={<RotateCcw className="h-3.5 w-3.5" />}>
         Clear filters
@@ -297,7 +406,7 @@ const SearchPage: React.FC = () => {
       <PageHero
         eyebrow="Station finder"
         title="Find your next charge"
-        description="Search the ChargeEase catalog by place, connector and speed. Prices, power and availability come straight from the station feed."
+        description="Search the Afterglow catalog by place, connector and speed. Prices, power and availability come straight from the station feed."
       />
 
       <div className="relative z-10 mx-auto -mt-8 max-w-[1280px] px-4 sm:px-6 lg:px-8">
@@ -305,6 +414,10 @@ const SearchPage: React.FC = () => {
       </div>
 
       <div className="mx-auto max-w-[1280px] px-4 pb-20 pt-8 sm:px-6 lg:px-8">
+        <Breadcrumbs
+          className="mb-5"
+          items={[{ label: 'Home', to: '/' }, { label: 'Find stations' }]}
+        />
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
           {/* Filters */}
           <aside className="w-full shrink-0 lg:w-[17.5rem]">
@@ -360,6 +473,14 @@ const SearchPage: React.FC = () => {
               </p>
 
               <div className="flex flex-wrap items-center gap-2">
+                <ButtonLink
+                  to="/compare"
+                  variant="ghost"
+                  size="sm"
+                  leftIcon={<Scale className="h-3.5 w-3.5" />}
+                >
+                  Compare
+                </ButtonLink>
                 <div className="flex rounded-full border border-line bg-surface-muted p-1" role="group" aria-label="View mode">
                   <button
                     type="button"
@@ -402,6 +523,31 @@ const SearchPage: React.FC = () => {
                 </select>
               </div>
             </div>
+
+            {activeChips.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Active filters">
+                <span className="text-xs text-ink-subtle">Active:</span>
+                {activeChips.map((chip) => (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    onClick={chip.remove}
+                    className="inline-flex h-7 items-center gap-1.5 rounded-full border border-brand/35 bg-brand-soft px-2.5 text-xs font-medium text-brand-soft-ink transition-colors hover:border-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                  >
+                    {chip.label}
+                    <X className="h-3 w-3" aria-hidden="true" />
+                    <span className="sr-only">Remove {chip.label} filter</span>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="rounded text-xs font-medium text-ink-muted underline underline-offset-2 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
 
             {result?.source === 'demo' && (
               <div className="mt-4 flex items-start gap-2.5 rounded-card border border-warning/30 bg-warning-soft px-4 py-3 text-xs leading-relaxed text-warning-ink">
@@ -447,9 +593,15 @@ const SearchPage: React.FC = () => {
                     }
                     selectedId={selectedId}
                     onSelect={(station) => setSelectedId(station.id)}
+                    onClearSelection={() => setSelectedId(null)}
                     height="560px"
                     emptyMessage="No stations match these filters, so there is nothing to plot."
                   />
+                  <p className="flex items-start gap-2 text-xs leading-relaxed text-ink-subtle">
+                    <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    Coordinates come from the seeded Afterglow catalogue, not a verified operator
+                    feed. Treat them as sample locations and confirm the address before driving.
+                  </p>
                   <div className="grid gap-4 sm:grid-cols-2">
                     {stations.slice(0, 4).map((station) => (
                       <StationCard key={station.id} station={station} showActions />
@@ -457,26 +609,28 @@ const SearchPage: React.FC = () => {
                   </div>
                 </div>
               ) : isPending ? (
-                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {Array.from({ length: 6 }).map((_, index) => (
-                    <div
-                      key={index}
-                      className="h-[27rem] animate-pulse rounded-card border border-line bg-surface-muted"
-                    />
+                    <StationCardSkeleton key={index} />
                   ))}
                 </div>
               ) : stations.length === 0 ? (
-                <div className="rounded-card border border-line bg-surface p-10 text-center">
-                  <MapPin className="mx-auto h-8 w-8 text-ink-subtle" aria-hidden="true" />
-                  <h2 className="ev-card-title mt-4 text-ink">No stations found</h2>
-                  <p className="mx-auto mt-2 max-w-md text-sm text-ink-muted">
-                    Nothing in the catalog matches all of those filters. Try a wider search or
-                    remove a filter.
-                  </p>
-                  <Button className="mt-5" variant="secondary" onClick={clearFilters}>
-                    Clear filters
-                  </Button>
-                </div>
+                <EmptyState
+                  icon={MapPin}
+                  title="No stations match those filters"
+                  description="Nothing in the catalogue satisfies every filter at once. Try a wider search, a different connector, or clear the filters entirely."
+                  action={
+                    <>
+                      <Button variant="primary" onClick={clearFilters}>
+                        Clear filters
+                      </Button>
+                      <ButtonLink to="/compare" variant="ghost" size="md">
+                        Compare stations
+                      </ButtonLink>
+                    </>
+                  }
+                  footNote="The catalogue only lists stations that have been seeded in this build."
+                />
               ) : (
                 <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                   {stations.map((station) => (
@@ -487,8 +641,9 @@ const SearchPage: React.FC = () => {
                       cornerAction={
                         isAuthenticated ? (
                           <button
-                            type="button"
-                            onClick={() => handleFavorite(station.id, station.name)}
+                            type="button"                              onClick={() =>
+                                void handleFavorite(station.id, station.name)
+                              }
                             aria-label={
                               isFavorite(station.id)
                                 ? `Remove ${station.name} from favourites`
@@ -561,6 +716,53 @@ const SearchPage: React.FC = () => {
                 .
               </p>
             )}
+
+            {recentStations.length > 0 && (
+              <section
+                aria-labelledby="recently-viewed-heading"
+                className="mt-10 border-t border-line pt-8"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-3">
+                  <div>
+                    <h2 id="recently-viewed-heading" className="ev-title text-ink">
+                      Recently viewed
+                    </h2>
+                    <p className="mt-1 text-xs text-ink-subtle">
+                      Stored in this browser only — clear it whenever you like.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearRecent}
+                    className="rounded text-xs font-medium text-ink-muted underline underline-offset-2 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                  >
+                    Clear history
+                  </button>
+                </div>
+                <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  {recentStations.map((station) => (
+                    <StationCard key={station.id} station={station} compact />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <div className="mt-10 flex flex-col gap-3 rounded-card border border-line bg-surface-muted px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="ev-card-title text-ink">Comparing charges is easier in a table</h2>
+                <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+                  Put up to three stations side by side for power, connectors, price and amenities.
+                </p>
+              </div>
+              <ButtonLink
+                to="/compare"
+                variant="outline"
+                size="sm"
+                rightIcon={<ArrowRight className="h-3.5 w-3.5" />}
+              >
+                Open comparison
+              </ButtonLink>
+            </div>
           </div>
         </div>
       </div>

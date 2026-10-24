@@ -8,16 +8,16 @@ interface WordmarkProps {
 }
 
 /**
- * The ChargeEase wordmark.
+ * The Afterglow wordmark.
  *
- * One treatment everywhere it appears: "Charge" inherits the surrounding ink,
- * "Ease" carries the emerald accent. Previously the header and the auth pages
+ * One treatment everywhere it appears: "After" inherits the surrounding ink,
+ * "glow" carries the emerald accent. Previously the header and the auth pages
  * rendered it as gradient text while the footer used two colours, so the same
  * logo looked like three different logos.
  */
 const Wordmark: React.FC<WordmarkProps> = ({ className = '', onDeep = false }) => (
   <span className={`font-semibold leading-none tracking-[-0.02em] ${className}`}>
-    Charge<span className={onDeep ? 'text-brand-on-deep' : 'text-brand'}>Ease</span>
+    After<span className={onDeep ? 'text-brand-on-deep' : 'text-brand'}>glow</span>
   </span>
 );
 

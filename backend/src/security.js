@@ -100,13 +100,38 @@ function extractBearer(req) {
   return value;
 }
 
+/** Read one cookie without adding a cookie-parser dependency. */
+function readCookie(req, name) {
+  const header = req.headers.cookie;
+  if (!header) return null;
+  for (const part of header.split(';')) {
+    const separator = part.indexOf('=');
+    if (separator === -1) continue;
+    if (part.slice(0, separator).trim() !== name) continue;
+    try {
+      return decodeURIComponent(part.slice(separator + 1).trim());
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Session transport: browser clients use the HttpOnly cookie, API clients and
+ * the existing test suite can keep sending a bearer token.
+ */
+function extractSessionToken(req) {
+  return extractBearer(req) || readCookie(req, 'chargeease_session');
+}
+
 /**
  * Express middleware factory. `loadUser` resolves a user row from an id.
  * Attaches `req.user` (public shape) and `req.sessionId`.
  */
 function requireAuth(db) {
   return (req, res, next) => {
-    const token = extractBearer(req);
+    const token = extractSessionToken(req);
     if (!token) return next(ApiError.unauthorized());
     let claims;
     try {
@@ -150,6 +175,8 @@ module.exports = {
   verifyToken,
   requireAuth,
   extractBearer,
+  extractSessionToken,
+  readCookie,
   createOpaqueToken,
   sha256,
 };

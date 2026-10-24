@@ -1,4 +1,4 @@
-# ⚡ ChargeEase
+# ⚡ Afterglow
 
 An EV charging-station finder and account-management web app. It is a full-stack,
 local-first project built entirely on free and open-source tools — no paid APIs,
@@ -91,7 +91,7 @@ so no CORS configuration is needed locally.
 Created by `npm run seed`:
 
 ```
-email:    demo@chargeease.test
+email:    demo@afterglow.test
 password: Demo1234!
 ```
 
@@ -337,7 +337,7 @@ relying on any of them, and add a reverse proxy plus HTTPS in front of the API.
 ## Known limitations
 
 - **No live station data.** Sample data only; availability is not real-time.
-- **No operator integration.** Bookings are stored in the ChargeEase database
+- **No operator integration.** Bookings are stored in the Afterglow database
   and never sent to a charge-point operator.
 - **Simulated payments.** The wallet is a demo ledger. No payment gateway, no
   card data, and no real money movement.

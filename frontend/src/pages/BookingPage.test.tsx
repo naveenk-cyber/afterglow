@@ -50,7 +50,7 @@ describe('BookingPage — booking creation', () => {
     expect(screen.getByText(/Estimated 135 kWh · \$46\.40/)).toBeInTheDocument();
     expect(screen.getByText(/Estimate only/)).toBeInTheDocument();
     expect(
-      screen.getByText(/This stores a reservation in the ChargeEase database only/),
+      screen.getByText(/This stores a reservation in the Afterglow database only/),
     ).toBeInTheDocument();
   });
 
@@ -236,7 +236,7 @@ describe('BookingPage — list, cancellation and charging', () => {
 
   it('shows a retryable error state when the list request fails', async () => {
     vi.spyOn(bookingService, 'getBookings').mockRejectedValue(
-      new ApiError('Could not reach the ChargeEase API. Is the backend running?', 'NETWORK_ERROR', 0),
+      new ApiError('Could not reach the Afterglow API. Is the backend running?', 'NETWORK_ERROR', 0),
     );
 
     renderBookings();

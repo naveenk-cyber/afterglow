@@ -36,7 +36,7 @@ const ChargingClub: React.FC = () => (
       <div>
         <p className="ev-label flex items-center gap-2">
           <Crown className="h-3.5 w-3.5" aria-hidden="true" />
-          ChargeEase membership
+          Afterglow membership
         </p>
         <h2
           id="membership-cta-heading"

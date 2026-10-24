@@ -74,7 +74,7 @@ const Hero: React.FC = () => {
 
             {data?.source === 'demo' && (
               <p className="mt-3 max-w-md text-xs leading-relaxed text-warning-ink">
-                Showing the bundled sample catalog — the ChargeEase API is not reachable, so these
+                Showing the bundled sample catalog — the Afterglow API is not reachable, so these
                 figures describe demo data only.
               </p>
             )}
@@ -100,13 +100,13 @@ const Hero: React.FC = () => {
 
               <div className="absolute left-3 top-3">
                 <Badge tone="deep" dot>
-                  Charging network · live catalog
+                  From the station catalogue
                 </Badge>
               </div>
 
               {featured && (
                 <div className="absolute inset-x-3 bottom-3 rounded-[12px] border border-white/12 bg-[#0b0c0e]/85 p-3.5 backdrop-blur-md">
-                  <p className="ev-label text-brand-on-deep">Nearest station</p>
+                  <p className="ev-label text-brand-on-deep">Featured station</p>
                   <p className="mt-1 truncate text-[0.92rem] font-semibold text-deep-ink">
                     {featured.name}
                   </p>

@@ -36,7 +36,7 @@ const ResetPasswordPage: React.FC = () => {
       await authService.resetPassword(token, password);
       setMessage({
         kind: 'success',
-        text: 'Password updated. You can sign in with the new password now.',
+        text: 'Password updated. Please sign in again.',
       });
     } catch (error) {
       setMessage({ kind: 'error', text: (error as Error).message });

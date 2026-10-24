@@ -26,7 +26,7 @@ const STEPS = [
 const HowItWorks: React.FC = () => (
   <section aria-labelledby="how-it-works-heading" className="rounded-card border border-line bg-surface p-6 sm:p-8">
     <SectionHeading
-      eyebrow="How ChargeEase works"
+      eyebrow="How Afterglow works"
       title="Three steps from range anxiety to a plan"
       description="No account needed to search. An account keeps your bookings, saved stations and wallet in one place."
     />
