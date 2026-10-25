@@ -178,8 +178,8 @@ const LoginPage: React.FC = () => {
                 Demo account
               </p>
               <p className="mt-2 text-xs leading-relaxed text-ink-muted">
-                The seeded demo account signs in against your local Afterglow API and stores its
-                bookings, wallet and sessions in the SQLite database.
+                The seeded demo account signs in against the Afterglow API and stores its bookings,
+                wallet and sessions in the project database.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button variant="ghost" size="sm" onClick={fillDemo} type="button">
