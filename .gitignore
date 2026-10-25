@@ -49,3 +49,7 @@ desktop.ini
 
 # Local deploy credentials (never commit)
 .render-token
+.tools/
+
+# Local deployment credentials
+.turso.env
