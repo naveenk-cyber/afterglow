@@ -33,7 +33,7 @@ test('signup creates a user, wallet, and session', async (t) => {
   // Never leak the hash.
   assert.equal(res.body.data.user.password_hash, undefined);
 
-  const walletCount = client.db.prepare('SELECT COUNT(*) AS c FROM wallets').get().c;
+  const walletCount = (await client.db.prepare('SELECT COUNT(*) AS c FROM wallets').get()).c;
   assert.equal(walletCount, 1);
 });
 

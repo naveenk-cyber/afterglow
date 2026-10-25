@@ -50,13 +50,15 @@ function clearSessionCookie(res) {
   });
 }
 
-function createSession(db, userId) {
+async function createSession(db, userId) {
   const sessionId = newId();
   const ttlSeconds = config.sessionTtlHours * 3600;
   const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
-  db.prepare(
-    'INSERT INTO auth_sessions (id, user_id, expires_at, revoked, created_at) VALUES (?, ?, ?, 0, ?)',
-  ).run(sessionId, userId, expiresAt, nowIso());
+  await db
+    .prepare(
+      'INSERT INTO auth_sessions (id, user_id, expires_at, revoked, created_at) VALUES (?, ?, ?, 0, ?)',
+    )
+    .run(sessionId, userId, expiresAt, nowIso());
   const { token } = createToken({ userId, sessionId, ttlSeconds });
   return { token, expiresAt };
 }
@@ -82,7 +84,7 @@ function createAuthRouter(db) {
   router.post(
     '/signup',
     credentialLimiter,
-    asyncHandler((req, res) => {
+    asyncHandler(async (req, res) => {
       const body = v.requireObjectBody(req.body);
       const firstName = v.str(body.firstName, 'First name', { min: 1, max: 60 });
       const lastName = v.str(body.lastName, 'Last name', { min: 1, max: 60 });
@@ -94,7 +96,7 @@ function createAuthRouter(db) {
       if (body.confirmPassword !== undefined && body.confirmPassword !== password) {
         throw ApiError.badRequest('Passwords do not match.');
       }
-      if (findUserByEmail(db, email)) {
+      if (await findUserByEmail(db, email)) {
         throw ApiError.conflict('An account with this email already exists.');
       }
 
@@ -106,27 +108,29 @@ function createAuthRouter(db) {
 
       const id = newId();
       const timestamp = nowIso();
-      db.prepare(
-        `INSERT INTO users (id, email, password_hash, name, phone, membership_level, preferences_json, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'Free', ?, ?, ?)`,
-      ).run(
-        id,
-        email,
-        hashPassword(password),
-        v.sanitizeText(`${firstName} ${lastName}`),
-        phone ? v.sanitizeText(phone) : null,
-        preferences,
-        timestamp,
-        timestamp,
-      );
+      await db
+        .prepare(
+          `INSERT INTO users (id, email, password_hash, name, phone, membership_level, preferences_json, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, 'Free', ?, ?, ?)`,
+        )
+        .run(
+          id,
+          email,
+          hashPassword(password),
+          v.sanitizeText(`${firstName} ${lastName}`),
+          phone ? v.sanitizeText(phone) : null,
+          preferences,
+          timestamp,
+          timestamp,
+        );
 
-      ensureWallet(db, id);
-      const session = createSession(db, id);
+      await ensureWallet(db, id);
+      const session = await createSession(db, id);
       setSessionCookie(res, session.token, { remember: body.rememberMe !== false });
       res.status(201).json({
         success: true,
         data: {
-          user: publicUser(db, findUserById(db, id)),
+          user: await publicUser(db, await findUserById(db, id)),
           token: session.token,
           expiresAt: session.expiresAt,
         },
@@ -137,21 +141,25 @@ function createAuthRouter(db) {
   router.post(
     '/login',
     credentialLimiter,
-    asyncHandler((req, res) => {
+    asyncHandler(async (req, res) => {
       const body = v.requireObjectBody(req.body);
       const email = v.email(body.email);
       const password = v.str(body.password, 'Password', { min: 1, max: 200 });
-      const user = findUserByEmail(db, email);
+      const user = await findUserByEmail(db, email);
 
       // Same error for unknown email and wrong password (no account enumeration).
       if (!user || !verifyPassword(password, user.password_hash)) {
         throw ApiError.unauthorized('Invalid email or password.');
       }
-      const session = createSession(db, user.id);
+      const session = await createSession(db, user.id);
       setSessionCookie(res, session.token, { remember: body.rememberMe !== false });
       res.json({
         success: true,
-        data: { user: publicUser(db, user), token: session.token, expiresAt: session.expiresAt },
+        data: {
+          user: await publicUser(db, user),
+          token: session.token,
+          expiresAt: session.expiresAt,
+        },
       });
     }),
   );
@@ -159,8 +167,8 @@ function createAuthRouter(db) {
   router.post(
     '/logout',
     auth,
-    asyncHandler((req, res) => {
-      db.prepare('UPDATE auth_sessions SET revoked = 1 WHERE id = ?').run(req.sessionId);
+    asyncHandler(async (req, res) => {
+      await db.prepare('UPDATE auth_sessions SET revoked = 1 WHERE id = ?').run(req.sessionId);
       clearSessionCookie(res);
       res.json({ success: true, data: { message: 'Signed out.' } });
     }),
@@ -169,8 +177,8 @@ function createAuthRouter(db) {
   router.get(
     '/me',
     auth,
-    asyncHandler((req, res) => {
-      res.json({ success: true, data: { user: publicUser(db, req.user) } });
+    asyncHandler(async (req, res) => {
+      res.json({ success: true, data: { user: await publicUser(db, req.user) } });
     }),
   );
 
@@ -182,10 +190,10 @@ function createAuthRouter(db) {
   router.post(
     '/forgot-password',
     credentialLimiter,
-    asyncHandler((req, res) => {
+    asyncHandler(async (req, res) => {
       const body = v.requireObjectBody(req.body);
       const email = v.email(body.email);
-      const user = findUserByEmail(db, email);
+      const user = await findUserByEmail(db, email);
       const response = {
         message:
           'If an account exists for that email, a password reset link has been generated.',
@@ -193,9 +201,11 @@ function createAuthRouter(db) {
 
       if (user) {
         const { token, hash } = createOpaqueToken();
-        db.prepare(
-          'INSERT INTO password_resets (token_hash, user_id, expires_at, used, created_at) VALUES (?, ?, ?, 0, ?)',
-        ).run(
+        await db
+          .prepare(
+            'INSERT INTO password_resets (token_hash, user_id, expires_at, used, created_at) VALUES (?, ?, ?, 0, ?)',
+          )
+          .run(
           hash,
           user.id,
           new Date(Date.now() + RESET_TTL_MINUTES * 60 * 1000).toISOString(),
@@ -216,27 +226,31 @@ function createAuthRouter(db) {
   router.post(
     '/reset-password',
     credentialLimiter,
-    asyncHandler((req, res) => {
+    asyncHandler(async (req, res) => {
       const body = v.requireObjectBody(req.body);
       const token = v.str(body.token, 'Reset token', { min: 10, max: 500 });
       const password = v.str(body.password, 'Password', { min: PASSWORD_MIN, max: 200 });
       assertPasswordStrength(password);
 
-      const record = db
+      const record = await db
         .prepare('SELECT * FROM password_resets WHERE token_hash = ?')
         .get(sha256(token));
       if (!record || record.used || new Date(record.expires_at).getTime() < Date.now()) {
         throw ApiError.badRequest('This reset link is invalid or has expired.');
       }
 
-      db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?').run(
+      await db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?').run(
         hashPassword(password),
         nowIso(),
         record.user_id,
       );
-      db.prepare('UPDATE password_resets SET used = 1 WHERE token_hash = ?').run(record.token_hash);
+      await db
+        .prepare('UPDATE password_resets SET used = 1 WHERE token_hash = ?')
+        .run(record.token_hash);
       // Invalidate every existing session after a credential change.
-      db.prepare('UPDATE auth_sessions SET revoked = 1 WHERE user_id = ?').run(record.user_id);
+      await db
+        .prepare('UPDATE auth_sessions SET revoked = 1 WHERE user_id = ?')
+        .run(record.user_id);
 
       res.json({ success: true, data: { message: 'Password updated. Please sign in again.' } });
     }),

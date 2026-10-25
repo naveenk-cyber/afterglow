@@ -42,3 +42,10 @@ screenshots/
 Thumbs.db
 desktop.ini
 *.swp
+
+.vercel
+.env*
+!.env.example
+
+# Local deploy credentials (never commit)
+.render-token

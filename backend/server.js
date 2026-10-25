@@ -8,4 +8,7 @@
  */
 const { start } = require('./src/index');
 
-start();
+start().catch((error) => {
+  console.error('[startup]', error);
+  process.exitCode = 1;
+});

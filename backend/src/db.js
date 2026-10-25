@@ -2,11 +2,13 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { DatabaseSync } = require('node:sqlite');
+const { AsyncLocalStorage } = require('node:async_hooks');
 
 /**
  * Ordered, idempotent migrations. Applied in `version` order and recorded in
  * `schema_migrations`, so running the server twice is safe.
+ *
+ * The SQL is valid SQLite/libSQL and is also used by the hosted Turso database.
  */
 const MIGRATIONS = [
   {
@@ -178,104 +180,218 @@ const MIGRATIONS = [
   },
 ];
 
-function openDatabase(file) {
+/** Routes each query to the active transaction, otherwise to the adapter. */
+const transactionStorage = new AsyncLocalStorage();
+
+function splitStatements(sql) {
+  return sql
+    .split(';')
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+}
+
+/** Wrap a query target (adapter or transaction) with the familiar prepare API. */
+function prepareOn(target, sql) {
+  return {
+    get: async (...params) => (await target.execute(sql, params)).rows[0],
+    all: async (...params) => (await target.execute(sql, params)).rows,
+    run: async (...params) => {
+      const result = await target.execute(sql, params);
+      return { changes: result.rowsAffected, lastInsertRowid: result.lastInsertRowid };
+    },
+  };
+}
+
+/** Build a local SQLite adapter (used for tests and local development). */
+function createSqliteAdapter(file) {
+  const { DatabaseSync } = require('node:sqlite');
   if (file !== ':memory:') {
     fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
   }
-  const db = new DatabaseSync(file);
-  db.exec('PRAGMA foreign_keys = ON;');
-  db.exec('PRAGMA journal_mode = WAL;');
-  return db;
+  const sqlite = new DatabaseSync(file);
+  sqlite.exec('PRAGMA foreign_keys = ON;');
+  if (file !== ':memory:') sqlite.exec('PRAGMA journal_mode = WAL;');
+
+  return {
+    kind: 'sqlite',
+    async execute(sql, params = []) {
+      const statement = sqlite.prepare(sql);
+      if (/^\s*(select|with|values|pragma)/i.test(sql)) {
+        return { rows: statement.all(...params), rowsAffected: 0 };
+      }
+      const info = statement.run(...params);
+      return {
+        rows: [],
+        rowsAffected: Number(info.changes),
+        lastInsertRowid: info.lastInsertRowid,
+      };
+    },
+    async exec(sql) {
+      sqlite.exec(sql);
+    },
+    async applyMigration(migration) {
+      sqlite.exec('BEGIN');
+      try {
+        sqlite.exec(migration.sql);
+        sqlite
+          .prepare('INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)')
+          .run(migration.version, migration.name, new Date().toISOString());
+        sqlite.exec('COMMIT');
+      } catch (error) {
+        sqlite.exec('ROLLBACK');
+        throw error;
+      }
+    },
+    async beginTransaction() {
+      sqlite.exec('BEGIN IMMEDIATE');
+      const target = this;
+      return {
+        target,
+        commit: async () => sqlite.exec('COMMIT'),
+        rollback: async () => sqlite.exec('ROLLBACK'),
+      };
+    },
+    async close() {
+      sqlite.close();
+    },
+  };
 }
 
-function migrate(db) {
-  db.exec(
+/** Build a Turso/libSQL adapter for the hosted database on Vercel. */
+function createLibsqlAdapter({ url, authToken }) {
+  const { createClient } = require('@libsql/client');
+  const client = createClient({ url, authToken });
+
+  return {
+    kind: 'libsql',
+    execute: async (sql, params = []) => client.execute({ sql, args: params }),
+    exec: async (sql) => {
+      await client.executeMultiple(sql);
+    },
+    async applyMigration(migration) {
+      const statements = splitStatements(migration.sql).map((sql) => ({ sql, args: [] }));
+      statements.push({
+        sql: 'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)',
+        args: [migration.version, migration.name, new Date().toISOString()],
+      });
+      await client.batch(statements, 'write');
+    },
+    async beginTransaction() {
+      const tx = await client.transaction('write');
+      const target = {
+        execute: async (sql, params = []) => tx.execute({ sql, args: params }),
+        exec: async (sql) => {
+          await tx.execute(sql);
+        },
+      };
+      return {
+        target,
+        commit: () => tx.commit(),
+        rollback: () => tx.rollback(),
+      };
+    },
+    async close() {
+      client.close();
+    },
+  };
+}
+
+/** Public database handle used by routes and repositories. */
+function makeDatabase(adapter) {
+  return {
+    kind: adapter.kind,
+    prepare: (sql) => prepareOn(transactionStorage.getStore() || adapter, sql),
+    exec: (sql) => (transactionStorage.getStore() || adapter).exec(sql),
+    beginTransaction: () => adapter.beginTransaction(),
+    applyMigration: (migration) => adapter.applyMigration(migration),
+    close: () => adapter.close(),
+  };
+}
+
+async function migrate(db) {
+  await db.exec(
     'CREATE TABLE IF NOT EXISTS schema_migrations (' +
       'version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL);',
   );
 
   const applied = new Set(
-    db.prepare('SELECT version FROM schema_migrations').all().map((row) => row.version),
+    (await db.prepare('SELECT version FROM schema_migrations').all()).map((row) => row.version),
   );
 
   for (const migration of MIGRATIONS) {
     if (applied.has(migration.version)) continue;
-    db.exec('BEGIN');
-    try {
-      db.exec(migration.sql);
-      db.prepare(
-        'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)',
-      ).run(migration.version, migration.name, new Date().toISOString());
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
-    }
+    await db.applyMigration(migration);
   }
   return db;
 }
 
-/** Track databases with an open transaction so nesting uses savepoints. */
-const activeTransactions = new WeakSet();
-
 /**
  * Run `fn` inside a transaction, rolling back on any thrown error.
  * Nested calls use SAVEPOINTs so helper functions can be composed safely.
+ * All queries issued through the shared database handle inside `fn` are routed
+ * to the transaction connection via AsyncLocalStorage.
  */
-function transaction(db, fn) {
-  if (activeTransactions.has(db)) {
+async function transaction(db, fn) {
+  const active = transactionStorage.getStore();
+  if (active) {
     const name = `sp_${Math.random().toString(36).slice(2, 10)}`;
-    db.exec(`SAVEPOINT ${name}`);
+    await active.exec(`SAVEPOINT ${name}`);
     try {
-      const result = fn();
-      db.exec(`RELEASE ${name}`);
+      const result = await fn();
+      await active.exec(`RELEASE ${name}`);
       return result;
     } catch (error) {
-      db.exec(`ROLLBACK TO ${name}`);
-      db.exec(`RELEASE ${name}`);
+      await active.exec(`ROLLBACK TO ${name}`);
+      await active.exec(`RELEASE ${name}`);
       throw error;
     }
   }
 
-  activeTransactions.add(db);
-  db.exec('BEGIN IMMEDIATE');
+  const { target, commit, rollback } = await db.beginTransaction();
   try {
-    const result = fn();
-    db.exec('COMMIT');
+    const result = await transactionStorage.run(target, fn);
+    await commit();
     return result;
   } catch (error) {
     try {
-      db.exec('ROLLBACK');
+      await rollback();
     } catch {
       // Transaction was already rolled back.
     }
     throw error;
-  } finally {
-    activeTransactions.delete(db);
   }
 }
 
-let shared = null;
+let sharedPromise = null;
 
 /** Lazily create a single process-wide database handle. */
-function getDatabase(file = null) {
-  if (!shared) {
-    const target = file || require('./config').databaseFile;
-    shared = migrate(openDatabase(target));
+function getDatabase() {
+  if (!sharedPromise) {
+    sharedPromise = (async () => {
+      const url = process.env.TURSO_DATABASE_URL;
+      const adapter = url
+        ? createLibsqlAdapter({ url, authToken: process.env.TURSO_AUTH_TOKEN })
+        : createSqliteAdapter(require('./config').databaseFile);
+      return migrate(makeDatabase(adapter));
+    })().catch((error) => {
+      sharedPromise = null;
+      throw error;
+    });
   }
-  return shared;
+  return sharedPromise;
 }
 
 /** Test helper: build an isolated in-memory database with the schema applied. */
-function createMemoryDatabase() {
-  return migrate(openDatabase(':memory:'));
+async function createMemoryDatabase() {
+  return migrate(makeDatabase(createSqliteAdapter(':memory:')));
 }
 
 module.exports = {
   MIGRATIONS,
-  openDatabase,
-  migrate,
   transaction,
   getDatabase,
   createMemoryDatabase,
+  createSqliteAdapter,
+  createLibsqlAdapter,
+  makeDatabase,
 };

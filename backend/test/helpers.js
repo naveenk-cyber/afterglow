@@ -9,8 +9,8 @@ const { seedStations } = require('../src/seed');
  * Returns a small client so tests read like real HTTP usage.
  */
 async function startTestServer({ seed = true } = {}) {
-  const db = createMemoryDatabase();
-  if (seed) seedStations(db);
+  const db = await createMemoryDatabase();
+  if (seed) await seedStations(db);
 
   const app = createApp(db);
   const server = await new Promise((resolve) => {
@@ -50,8 +50,8 @@ async function startTestServer({ seed = true } = {}) {
     delete: (path, opts) => request('DELETE', path, opts),
     close: () =>
       new Promise((resolve) => {
-        server.close(() => {
-          db.close();
+        server.close(async () => {
+          await db.close();
           resolve();
         });
       }),

@@ -313,25 +313,34 @@ not an idealised version of it:
 | [08 — API reference](docs/08-api-reference.md) | All 34 routes with payloads and error codes |
 | [09 — Test cases](docs/09-test-cases.md) | Automated + manual cases, results, traceability matrix |
 
-## Free deployment notes
+## Deployment (Vercel + Turso)
 
-Everything here runs on free tiers or a single small machine. No vendor is
-required.
+This repository deploys as one Vercel project: the Vite frontend is served as
+static assets and the Express API runs as a Node serverless function at
+`/api/*` ([api/[...path].js](api/%5B...path%5D.js)).
 
-**Database.** SQLite is a single file. Free hosts with a *persistent disk* are
-needed (for example a small VM, Fly.io with a volume, or Railway/Render with a
-disk). PaaS offerings that wipe the filesystem on redeploy will lose data —
-that is a limitation of free tiers, not a guarantee of availability. For durable
-free Postgres, check current terms for Neon or Supabase; swapping means replacing
-[db.js](backend/src/db.js) with a query layer, as raw SQL is already isolated there.
+**Database.** Vercel functions have no persistent filesystem, so production uses
+a hosted [Turso](https://turso.tech) libSQL database. Create a free database,
+then set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` in Vercel. The adapter in
+[db.js](backend/src/db.js) uses the same SQL and keeps local development and
+tests on the bundled SQLite file (`DATABASE_FILE`). Schema migrations run
+automatically on the first request.
 
-**API hosting.** Any Node ≥ 22.5 environment works. Set `NODE_ENV=production`,
-a strong `JWT_SECRET`, `CORS_ORIGIN` to the deployed frontend origin, and
-`PUBLIC_APP_URL` to the deployed frontend URL (used in reset links).
+**Required Vercel environment variables.** See [.env.example](.env.example):
+`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, a strong `JWT_SECRET`,
+`PUBLIC_APP_URL`, `CORS_ORIGIN`, `SEED_ON_START=true`, and optionally
+`SEED_DEMO_USER=true` to publish the documented demo account. Never put real
+secrets in `VITE_*` variables — those are embedded in the browser bundle.
 
-**Frontend hosting.** `npm run build` produces static files in `dist/` that can
-be served by any static host. Set `VITE_API_URL` to the public API URL if it is
-not same-origin, and add that origin to the backend's `CORS_ORIGIN`.
+**Project settings.** Root Directory: repository root. Framework: Other. Build
+command, install command, output directory and SPA rewrites come from
+[vercel.json](vercel.json). The API stays same-origin, so no `VITE_API_URL` is
+needed in production.
+
+**Local development.** Run the API with `cd backend && npm run dev` and the
+frontend with `cd frontend && npm run dev`; Vite proxies `/api` to port 5000.
+Set `VITE_API_URL` only when the API is on a different origin, and add that
+origin to the backend's `CORS_ORIGIN`.
 
 Free tiers change and are not permanent or unlimited. Verify quotas before
 relying on any of them, and add a reverse proxy plus HTTPS in front of the API.

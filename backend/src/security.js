@@ -130,31 +130,35 @@ function extractSessionToken(req) {
  * Attaches `req.user` (public shape) and `req.sessionId`.
  */
 function requireAuth(db) {
-  return (req, res, next) => {
-    const token = extractSessionToken(req);
-    if (!token) return next(ApiError.unauthorized());
-    let claims;
+  return async (req, res, next) => {
     try {
-      claims = verifyToken(token);
+      const token = extractSessionToken(req);
+      if (!token) return next(ApiError.unauthorized());
+      let claims;
+      try {
+        claims = verifyToken(token);
+      } catch (error) {
+        return next(error);
+      }
+      const session = await db
+        .prepare('SELECT id, user_id, expires_at, revoked FROM auth_sessions WHERE id = ?')
+        .get(claims.sid);
+      if (
+        !session ||
+        session.revoked ||
+        new Date(session.expires_at).getTime() < Date.now() ||
+        session.user_id !== claims.sub
+      ) {
+        return next(ApiError.unauthorized('Session is no longer valid.'));
+      }
+      const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(claims.sub);
+      if (!user) return next(ApiError.unauthorized());
+      req.user = user;
+      req.sessionId = claims.sid;
+      return next();
     } catch (error) {
       return next(error);
     }
-    const session = db
-      .prepare('SELECT id, user_id, expires_at, revoked FROM auth_sessions WHERE id = ?')
-      .get(claims.sid);
-    if (
-      !session ||
-      session.revoked ||
-      new Date(session.expires_at).getTime() < Date.now() ||
-      session.user_id !== claims.sub
-    ) {
-      return next(ApiError.unauthorized('Session is no longer valid.'));
-    }
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(claims.sub);
-    if (!user) return next(ApiError.unauthorized());
-    req.user = user;
-    req.sessionId = claims.sid;
-    return next();
   };
 }
 

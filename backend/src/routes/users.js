@@ -35,14 +35,14 @@ function createUsersRouter(db, { requireAuth }) {
 
   router.get(
     '/profile',
-    asyncHandler((req, res) => {
-      res.json({ success: true, data: { user: publicUser(db, req.user) } });
+    asyncHandler(async (req, res) => {
+      res.json({ success: true, data: { user: await publicUser(db, req.user) } });
     }),
   );
 
   router.put(
     '/profile',
-    asyncHandler((req, res) => {
+    asyncHandler(async (req, res) => {
       const body = v.requireObjectBody(req.body);
       const current = parseJson(req.user.preferences_json, {});
       const fields = [];
@@ -83,11 +83,11 @@ function createUsersRouter(db, { requireAuth }) {
         fields.push('updated_at = ?');
         params.push(nowIso());
         params.push(req.user.id);
-        db.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`).run(...params);
+        await db.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`).run(...params);
       }
 
-      const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-      res.json({ success: true, data: { user: publicUser(db, updated) } });
+      const updated = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+      res.json({ success: true, data: { user: await publicUser(db, updated) } });
     }),
   );
 
@@ -95,14 +95,15 @@ function createUsersRouter(db, { requireAuth }) {
 
   router.get(
     '/vehicles',
-    asyncHandler((req, res) => {
-      res.json({ success: true, data: { vehicles: getVehicles(db, req.user.id).map(serializeVehicle) } });
+    asyncHandler(async (req, res) => {
+      const vehicles = await getVehicles(db, req.user.id);
+      res.json({ success: true, data: { vehicles: vehicles.map(serializeVehicle) } });
     }),
   );
 
   router.post(
     '/vehicles',
-    asyncHandler((req, res) => {
+    asyncHandler(async (req, res) => {
       const body = v.requireObjectBody(req.body);
       const make = v.sanitizeText(v.str(body.make, 'Make', { min: 1, max: 60 }));
       const model = v.sanitizeText(v.str(body.model, 'Model', { min: 1, max: 60 }));
@@ -123,36 +124,41 @@ function createUsersRouter(db, { requireAuth }) {
 
       const id = newId();
       const timestamp = nowIso();
-      db.prepare(
-        `INSERT INTO vehicles
-          (id, user_id, make, model, year, battery_capacity_kwh, connector_types_json,
-           estimated_range_km, is_default, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        id,
-        req.user.id,
-        make,
-        model,
-        year ?? null,
-        battery ?? null,
-        JSON.stringify(connectorTypes),
-        range ?? null,
-        body.isDefault ? 1 : 0,
-        timestamp,
-        timestamp,
-      );
+      await db
+        .prepare(
+          `INSERT INTO vehicles
+            (id, user_id, make, model, year, battery_capacity_kwh, connector_types_json,
+             estimated_range_km, is_default, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          id,
+          req.user.id,
+          make,
+          model,
+          year ?? null,
+          battery ?? null,
+          JSON.stringify(connectorTypes),
+          range ?? null,
+          body.isDefault ? 1 : 0,
+          timestamp,
+          timestamp,
+        );
 
+      const vehicle = await db.prepare('SELECT * FROM vehicles WHERE id = ?').get(id);
       res.status(201).json({
         success: true,
-        data: { vehicle: serializeVehicle(db.prepare('SELECT * FROM vehicles WHERE id = ?').get(id)) },
+        data: { vehicle: serializeVehicle(vehicle) },
       });
     }),
   );
 
   router.put(
     '/vehicles/:id',
-    asyncHandler((req, res) => {
-      const existing = db.prepare('SELECT * FROM vehicles WHERE id = ?').get(req.params.id);
+    asyncHandler(async (req, res) => {
+      const existing = await db
+        .prepare('SELECT * FROM vehicles WHERE id = ?')
+        .get(req.params.id);
       if (!existing) throw ApiError.notFound('Vehicle not found.');
       if (existing.user_id !== req.user.id) throw ApiError.forbidden();
 
@@ -180,25 +186,26 @@ function createUsersRouter(db, { requireAuth }) {
       if (fields.length) {
         setField('updated_at', nowIso());
         params.push(req.params.id);
-        db.prepare(`UPDATE vehicles SET ${fields.join(', ')} WHERE id = ?`).run(...params);
+        await db.prepare(`UPDATE vehicles SET ${fields.join(', ')} WHERE id = ?`).run(...params);
       }
 
+      const updated = await db
+        .prepare('SELECT * FROM vehicles WHERE id = ?')
+        .get(req.params.id);
       res.json({
         success: true,
-        data: {
-          vehicle: serializeVehicle(db.prepare('SELECT * FROM vehicles WHERE id = ?').get(req.params.id)),
-        },
+        data: { vehicle: serializeVehicle(updated) },
       });
     }),
   );
 
   router.delete(
     '/vehicles/:id',
-    asyncHandler((req, res) => {
-      const existing = db.prepare('SELECT * FROM vehicles WHERE id = ?').get(req.params.id);
+    asyncHandler(async (req, res) => {
+      const existing = await db.prepare('SELECT * FROM vehicles WHERE id = ?').get(req.params.id);
       if (!existing) throw ApiError.notFound('Vehicle not found.');
       if (existing.user_id !== req.user.id) throw ApiError.forbidden();
-      db.prepare('DELETE FROM vehicles WHERE id = ?').run(req.params.id);
+      await db.prepare('DELETE FROM vehicles WHERE id = ?').run(req.params.id);
       res.json({ success: true, data: { deleted: true } });
     }),
   );
@@ -207,16 +214,16 @@ function createUsersRouter(db, { requireAuth }) {
 
   router.get(
     '/favorites',
-    asyncHandler((req, res) => {
-      const rows = db
+    asyncHandler(async (req, res) => {
+      const rows = await db
         .prepare(
           `SELECT s.* FROM favorites f JOIN stations s ON s.id = f.station_id
            WHERE f.user_id = ? ORDER BY f.created_at DESC`,
         )
         .all(req.user.id);
       const ids = rows.map((row) => row.id);
-      const connectorsMap = connectorsByStation(db, ids);
-      const ratings = ratingAggregates(db, ids);
+      const connectorsMap = await connectorsByStation(db, ids);
+      const ratings = await ratingAggregates(db, ids);
       res.json({
         success: true,
         data: {
@@ -232,9 +239,9 @@ function createUsersRouter(db, { requireAuth }) {
 
   router.get(
     '/wallet',
-    asyncHandler((req, res) => {
-      const wallet = ensureWallet(db, req.user.id);
-      const transactions = db
+    asyncHandler(async (req, res) => {
+      const wallet = await ensureWallet(db, req.user.id);
+      const transactions = await db
         .prepare(
           'SELECT * FROM wallet_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20',
         )
@@ -254,13 +261,15 @@ function createUsersRouter(db, { requireAuth }) {
 
   router.get(
     '/wallet/transactions',
-    asyncHandler((req, res) => {
+    asyncHandler(async (req, res) => {
       const page = v.positiveIntQuery(req.query.page, 'page', { fallback: 1, min: 1, max: 1000 });
       const limit = v.positiveIntQuery(req.query.limit, 'limit', { fallback: 20, min: 1, max: 50 });
-      const total = db
-        .prepare('SELECT COUNT(*) AS c FROM wallet_transactions WHERE user_id = ?')
-        .get(req.user.id).c;
-      const rows = db
+      const total = Number(
+        (await db
+          .prepare('SELECT COUNT(*) AS c FROM wallet_transactions WHERE user_id = ?')
+          .get(req.user.id)).c,
+      );
+      const rows = await db
         .prepare(
           'SELECT * FROM wallet_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
         )
@@ -284,14 +293,14 @@ function createUsersRouter(db, { requireAuth }) {
    */
   router.post(
     '/wallet/topup',
-    asyncHandler((req, res) => {
+    asyncHandler(async (req, res) => {
       const body = v.requireObjectBody(req.body);
       const amountMinor = v.number(body.amountMinor, 'Amount', {
         min: TOPUP_MIN_MINOR,
         max: TOPUP_MAX_MINOR,
         integer: true,
       });
-      const row = applyWalletTransaction(db, req.user.id, {
+      const row = await applyWalletTransaction(db, req.user.id, {
         type: 'topup',
         amountMinor,
         description: 'Simulated wallet top-up',
@@ -301,7 +310,7 @@ function createUsersRouter(db, { requireAuth }) {
         success: true,
         data: {
           transaction: serializeTransaction(row),
-          wallet: serializeWallet(ensureWallet(db, req.user.id)),
+          wallet: serializeWallet(await ensureWallet(db, req.user.id)),
           simulated: true,
           notice: 'Simulated top-up. No real payment was processed.',
         },
@@ -313,14 +322,14 @@ function createUsersRouter(db, { requireAuth }) {
 
   router.get(
     '/analytics',
-    asyncHandler((req, res) => {
+    asyncHandler(async (req, res) => {
       const days = v.oneOf(req.query.days ?? '30', 'days', ['7', '30', '90', '365'], {
         fallback: '30',
       });
       res.json({
         success: true,
         data: {
-          analytics: analyticsFor(db, req.user.id, { days: Number(days) }),
+          analytics: await analyticsFor(db, req.user.id, { days: Number(days) }),
           notice:
             'Figures are computed from your stored bookings and simulated charging sessions. Energy and cost values are estimates, not meter readings.',
         },

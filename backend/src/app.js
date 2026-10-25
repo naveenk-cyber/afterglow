@@ -49,8 +49,19 @@ function createApp(db) {
     }),
   );
 
-  app.use(express.json({ limit: '100kb' }));
-  app.use(express.urlencoded({ extended: false, limit: '100kb' }));
+  // Vercel's Node runtime may parse the JSON body before the function runs.
+  // Only parse when the body has not already been populated, otherwise the
+  // request stream is empty and Express would reject valid payloads.
+  const jsonParser = express.json({ limit: '100kb' });
+  const urlencodedParser = express.urlencoded({ extended: false, limit: '100kb' });
+  app.use((req, res, next) => {
+    if (req.body !== undefined) return next();
+    return jsonParser(req, res, next);
+  });
+  app.use((req, res, next) => {
+    if (req.body !== undefined) return next();
+    return urlencodedParser(req, res, next);
+  });
 
   // Broad limiter for the whole API surface.
   app.use(

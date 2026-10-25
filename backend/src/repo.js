@@ -15,30 +15,30 @@ const {
 const nowIso = () => new Date().toISOString();
 const newId = () => crypto.randomUUID();
 
-function findUserById(db, id) {
+async function findUserById(db, id) {
   return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
 }
 
-function findUserByEmail(db, email) {
+async function findUserByEmail(db, email) {
   return db.prepare('SELECT * FROM users WHERE email = ?').get(email);
 }
 
-function getVehicles(db, userId) {
+async function getVehicles(db, userId) {
   return db
     .prepare('SELECT * FROM vehicles WHERE user_id = ? ORDER BY is_default DESC, created_at ASC')
     .all(userId);
 }
 
-function publicUser(db, userRow) {
-  return serializeUser(userRow, getVehicles(db, userRow.id));
+async function publicUser(db, userRow) {
+  return serializeUser(userRow, await getVehicles(db, userRow.id));
 }
 
 /** Rating aggregate per station (from stored reviews, never hardcoded). */
-function ratingAggregates(db, stationIds) {
+async function ratingAggregates(db, stationIds) {
   const map = new Map();
   if (stationIds.length === 0) return map;
   const placeholders = stationIds.map(() => '?').join(',');
-  const rows = db
+  const rows = await db
     .prepare(
       `SELECT station_id, AVG(rating) AS avg_rating, COUNT(*) AS review_count
        FROM reviews WHERE station_id IN (${placeholders}) GROUP BY station_id`,
@@ -47,17 +47,17 @@ function ratingAggregates(db, stationIds) {
   for (const row of rows) {
     map.set(row.station_id, {
       rating: Math.round(row.avg_rating * 10) / 10,
-      reviewCount: row.review_count,
+      reviewCount: Number(row.review_count),
     });
   }
   return map;
 }
 
-function connectorsByStation(db, stationIds) {
+async function connectorsByStation(db, stationIds) {
   const map = new Map();
   if (stationIds.length === 0) return map;
   const placeholders = stationIds.map(() => '?').join(',');
-  const rows = db
+  const rows = await db
     .prepare(`SELECT * FROM connectors WHERE station_id IN (${placeholders})`)
     .all(...stationIds);
   for (const row of rows) {
@@ -67,24 +67,26 @@ function connectorsByStation(db, stationIds) {
   return map;
 }
 
-function getStationFull(db, id, origin = null) {
-  const row = db.prepare('SELECT * FROM stations WHERE id = ?').get(id);
+async function getStationFull(db, id, origin = null) {
+  const row = await db.prepare('SELECT * FROM stations WHERE id = ?').get(id);
   if (!row) return null;
-  const connectors = db.prepare('SELECT * FROM connectors WHERE station_id = ?').all(id);
-  const aggregate = ratingAggregates(db, [id]).get(id) || null;
+  const connectors = await db.prepare('SELECT * FROM connectors WHERE station_id = ?').all(id);
+  const aggregate = (await ratingAggregates(db, [id])).get(id) || null;
   return serializeStation(row, connectors, aggregate, origin);
 }
 
 /** Ensure the user's demo wallet exists, creating it lazily. */
-function ensureWallet(db, userId) {
-  let wallet = db.prepare('SELECT * FROM wallets WHERE user_id = ?').get(userId);
+async function ensureWallet(db, userId) {
+  let wallet = await db.prepare('SELECT * FROM wallets WHERE user_id = ?').get(userId);
   if (!wallet) {
     const id = newId();
-    db.prepare(
-      `INSERT INTO wallets (id, user_id, balance_minor, currency, simulated, updated_at)
-       VALUES (?, ?, 0, ?, 1, ?)`,
-    ).run(id, userId, config.currency, nowIso());
-    wallet = db.prepare('SELECT * FROM wallets WHERE user_id = ?').get(userId);
+    await db
+      .prepare(
+        `INSERT INTO wallets (id, user_id, balance_minor, currency, simulated, updated_at)
+         VALUES (?, ?, 0, ?, 1, ?)`,
+      )
+      .run(id, userId, config.currency, nowIso());
+    wallet = await db.prepare('SELECT * FROM wallets WHERE user_id = ?').get(userId);
   }
   return wallet;
 }
@@ -93,34 +95,38 @@ function ensureWallet(db, userId) {
  * Apply a signed wallet movement atomically and record the ledger entry.
  * Positive amountMinor credits, negative debits.
  */
-function applyWalletTransaction(db, userId, { type, amountMinor, description, reference = null }) {
-  return transaction(db, () => {
-    const wallet = ensureWallet(db, userId);
+async function applyWalletTransaction(
+  db,
+  userId,
+  { type, amountMinor, description, reference = null },
+) {
+  return transaction(db, async () => {
+    const wallet = await ensureWallet(db, userId);
     const nextBalance = wallet.balance_minor + amountMinor;
     if (nextBalance < 0) {
       throw ApiError.conflict('Insufficient wallet balance for this operation.');
     }
-    db.prepare('UPDATE wallets SET balance_minor = ?, updated_at = ? WHERE id = ?').run(
-      nextBalance,
-      nowIso(),
-      wallet.id,
-    );
+    await db
+      .prepare('UPDATE wallets SET balance_minor = ?, updated_at = ? WHERE id = ?')
+      .run(nextBalance, nowIso(), wallet.id);
     const id = newId();
-    db.prepare(
-      `INSERT INTO wallet_transactions
-        (id, wallet_id, user_id, type, amount_minor, balance_after_minor, description, reference, simulated, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
-    ).run(
-      id,
-      wallet.id,
-      userId,
-      type,
-      amountMinor,
-      nextBalance,
-      description,
-      reference,
-      nowIso(),
-    );
+    await db
+      .prepare(
+        `INSERT INTO wallet_transactions
+          (id, wallet_id, user_id, type, amount_minor, balance_after_minor, description, reference, simulated, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+      )
+      .run(
+        id,
+        wallet.id,
+        userId,
+        type,
+        amountMinor,
+        nextBalance,
+        description,
+        reference,
+        nowIso(),
+      );
     return db.prepare('SELECT * FROM wallet_transactions WHERE id = ?').get(id);
   });
 }
@@ -135,14 +141,14 @@ const ANALYTICS_DAYS = new Set([7, 30, 90, 365]);
  * receive daily buckets so the client can bucket them for narrow screens
  * without inventing records. Nothing here is hardcoded.
  */
-function analyticsFor(db, userId, { days = 30, now = Date.now() } = {}) {
+async function analyticsFor(db, userId, { days = 30, now = Date.now() } = {}) {
   const rangeDays = ANALYTICS_DAYS.has(Number(days)) ? Number(days) : 30;
   const rangeEnd = new Date(now).toISOString();
   const rangeStart = new Date(now - rangeDays * DAY_MS).toISOString();
   const previousStart = new Date(now - rangeDays * 2 * DAY_MS).toISOString();
   const previousEnd = rangeStart;
 
-  const summarise = (from, to) =>
+  const summarise = async (from, to) =>
     db
       .prepare(
         `SELECT
@@ -156,10 +162,10 @@ function analyticsFor(db, userId, { days = 30, now = Date.now() } = {}) {
       )
       .get(userId, from, to);
 
-  const totals = summarise(rangeStart, rangeEnd);
-  const previous = summarise(previousStart, previousEnd);
+  const totals = await summarise(rangeStart, rangeEnd);
+  const previous = await summarise(previousStart, previousEnd);
 
-  const daily = db
+  const daily = await db
     .prepare(
       `SELECT substr(started_at, 1, 10) AS date,
               COUNT(*) AS sessions,
@@ -172,7 +178,7 @@ function analyticsFor(db, userId, { days = 30, now = Date.now() } = {}) {
     )
     .all(userId, rangeStart, rangeEnd);
 
-  const connectorUsage = db
+  const connectorUsage = await db
     .prepare(
       `SELECT connector_type AS label, COUNT(*) AS value
        FROM charging_sessions
@@ -182,7 +188,7 @@ function analyticsFor(db, userId, { days = 30, now = Date.now() } = {}) {
     )
     .all(userId, rangeStart, rangeEnd);
 
-  const monthly = db
+  const monthly = await db
     .prepare(
       `SELECT substr(started_at, 1, 7) AS month,
               COUNT(*) AS sessions,
@@ -194,14 +200,14 @@ function analyticsFor(db, userId, { days = 30, now = Date.now() } = {}) {
     )
     .all(userId, new Date(now - 365 * DAY_MS).toISOString());
 
-  const recentRows = db
+  const recentRows = await db
     .prepare(
       `SELECT * FROM charging_sessions WHERE user_id = ?
        ORDER BY started_at DESC LIMIT 6`,
     )
     .all(userId);
 
-  const upcomingRows = db
+  const upcomingRows = await db
     .prepare(
       `SELECT * FROM bookings
        WHERE user_id = ? AND status IN ('pending', 'confirmed') AND start_time >= ?
@@ -209,7 +215,7 @@ function analyticsFor(db, userId, { days = 30, now = Date.now() } = {}) {
     )
     .all(userId, new Date(now).toISOString());
 
-  const favorites = db
+  const favorites = await db
     .prepare(
       `SELECT s.* FROM favorites f JOIN stations s ON s.id = f.station_id
        WHERE f.user_id = ? ORDER BY f.created_at DESC LIMIT 10`,
@@ -217,11 +223,18 @@ function analyticsFor(db, userId, { days = 30, now = Date.now() } = {}) {
     .all(userId);
 
   const favoriteIds = favorites.map((row) => row.id);
-  const favoriteConnectors = connectorsByStation(db, favoriteIds);
-  const favoriteRatings = ratingAggregates(db, favoriteIds);
-  const bookingsCount = db
+  const favoriteConnectors = await connectorsByStation(db, favoriteIds);
+  const favoriteRatings = await ratingAggregates(db, favoriteIds);
+  const bookingsCount = await db
     .prepare("SELECT COUNT(*) AS c FROM bookings WHERE user_id = ? AND status != 'cancelled'")
     .get(userId);
+
+  const recentSessions = await Promise.all(
+    recentRows.map(async (row) => serializeSession(row, await getStationFull(db, row.station_id))),
+  );
+  const upcomingBookings = await Promise.all(
+    upcomingRows.map(async (row) => serializeBooking(row, await getStationFull(db, row.station_id))),
+  );
 
   return {
     rangeDays,
@@ -256,20 +269,16 @@ function analyticsFor(db, userId, { days = 30, now = Date.now() } = {}) {
       energyConsumed: Math.round(row.energy * 10) / 10,
       cost: Math.round(row.cost * 100) / 100,
     })),
-    recentSessions: recentRows.map((row) =>
-      serializeSession(row, getStationFull(db, row.station_id)),
-    ),
-    upcomingBookings: upcomingRows.map((row) =>
-      serializeBooking(row, getStationFull(db, row.station_id)),
-    ),
+    recentSessions,
+    upcomingBookings,
     favoriteStations: favorites.map((row) =>
       serializeStation(row, favoriteConnectors.get(row.id) || [], favoriteRatings.get(row.id) || null),
     ),
   };
 }
 
-function stationExists(db, id) {
-  return Boolean(db.prepare('SELECT 1 FROM stations WHERE id = ?').get(id));
+async function stationExists(db, id) {
+  return Boolean(await db.prepare('SELECT 1 FROM stations WHERE id = ?').get(id));
 }
 
 module.exports = {

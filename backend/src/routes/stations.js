@@ -53,24 +53,19 @@ function createStationsRouter(db, { requireAuth }) {
   // Static routes first so "/meta/filters" is not captured by "/:id".
   router.get(
     '/meta/filters',
-    asyncHandler((req, res) => {
-      const operators = db
-        .prepare('SELECT DISTINCT operator FROM stations ORDER BY operator')
-        .all()
+    asyncHandler(async (req, res) => {
+      const operators = (await db.prepare('SELECT DISTINCT operator FROM stations ORDER BY operator').all())
         .map((row) => row.operator);
-      const connectorTypes = db
-        .prepare('SELECT DISTINCT type FROM connectors ORDER BY type')
-        .all()
+      const connectorTypes = (await db.prepare('SELECT DISTINCT type FROM connectors ORDER BY type').all())
         .map((row) => row.type);
-      const chargingSpeeds = db
-        .prepare('SELECT DISTINCT charging_speed FROM stations ORDER BY charging_speed')
-        .all()
-        .map((row) => row.charging_speed);
+      const chargingSpeeds = (
+        await db.prepare('SELECT DISTINCT charging_speed FROM stations ORDER BY charging_speed').all()
+      ).map((row) => row.charging_speed);
       const amenities = new Set();
-      for (const row of db.prepare('SELECT amenities_json FROM stations').all()) {
+      for (const row of await db.prepare('SELECT amenities_json FROM stations').all()) {
         for (const amenity of parseJson(row.amenities_json, [])) amenities.add(amenity);
       }
-      const priceRow = db
+      const priceRow = await db
         .prepare('SELECT MIN(price_per_kwh) AS min, MAX(price_per_kwh) AS max FROM stations')
         .get();
 
@@ -89,7 +84,7 @@ function createStationsRouter(db, { requireAuth }) {
 
   router.get(
     '/',
-    asyncHandler((req, res) => {
+    asyncHandler(async (req, res) => {
       const query = req.query;
       const page = v.positiveIntQuery(query.page, 'page', { fallback: 1, min: 1, max: 10000 });
       const limit = v.positiveIntQuery(query.limit, 'limit', { fallback: 12, min: 1, max: MAX_LIMIT });
@@ -151,7 +146,7 @@ function createStationsRouter(db, { requireAuth }) {
       const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
       const orderSql = buildOrderClause(sort);
 
-      const rows = db
+      const rows = await db
         .prepare(
           `SELECT s.*,
                   (SELECT AVG(r.rating) FROM reviews r WHERE r.station_id = s.id) AS avg_rating,
@@ -170,7 +165,7 @@ function createStationsRouter(db, { requireAuth }) {
       const origin = hasOrigin ? { latitude: lat, longitude: lng } : null;
 
       const ids = rows.map((row) => row.id);
-      const connectorsMap = connectorsByStation(db, ids);
+      const connectorsMap = await connectorsByStation(db, ids);
 
       let stations = rows.map((row) =>
         serializeStation(
@@ -219,19 +214,17 @@ function createStationsRouter(db, { requireAuth }) {
 
   router.get(
     '/nearby',
-    asyncHandler((req, res) => {
+    asyncHandler(async (req, res) => {
       const latitude = v.number(req.query.lat, 'lat', { min: -90, max: 90 });
       const longitude = v.number(req.query.lng, 'lng', { min: -180, max: 180 });
       const radius = v.number(req.query.radius, 'radius', { min: 1, max: 500, required: false }) ?? 25;
 
-      const ids = db.prepare('SELECT id FROM stations').all().map((row) => row.id);
-      const connectorsMap = connectorsByStation(db, ids);
-      const ratings = ratingAggregates(db, ids);
+      const ids = (await db.prepare('SELECT id FROM stations').all()).map((row) => row.id);
+      const connectorsMap = await connectorsByStation(db, ids);
+      const ratings = await ratingAggregates(db, ids);
       const origin = { latitude, longitude };
 
-      const stations = db
-        .prepare('SELECT * FROM stations')
-        .all()
+      const stations = (await db.prepare('SELECT * FROM stations').all())
         .map((row) =>
           serializeStation(row, connectorsMap.get(row.id) || [], ratings.get(row.id) || null, origin),
         )
@@ -245,12 +238,12 @@ function createStationsRouter(db, { requireAuth }) {
 
   router.get(
     '/:id',
-    asyncHandler((req, res) => {
+    asyncHandler(async (req, res) => {
       const lat = req.query.lat !== undefined ? Number(req.query.lat) : null;
       const lng = req.query.lng !== undefined ? Number(req.query.lng) : null;
       const origin =
         Number.isFinite(lat) && Number.isFinite(lng) ? { latitude: lat, longitude: lng } : null;
-      const station = getStationFull(db, req.params.id, origin);
+      const station = await getStationFull(db, req.params.id, origin);
       if (!station) throw ApiError.notFound('Station not found.');
       res.json({ success: true, data: { station } });
     }),
@@ -258,15 +251,17 @@ function createStationsRouter(db, { requireAuth }) {
 
   router.get(
     '/:id/reviews',
-    asyncHandler((req, res) => {
-      if (!stationExists(db, req.params.id)) throw ApiError.notFound('Station not found.');
+    asyncHandler(async (req, res) => {
+      if (!(await stationExists(db, req.params.id))) throw ApiError.notFound('Station not found.');
       const page = v.positiveIntQuery(req.query.page, 'page', { fallback: 1, min: 1, max: 1000 });
       const limit = v.positiveIntQuery(req.query.limit, 'limit', { fallback: 10, min: 1, max: 50 });
 
-      const total = db
-        .prepare('SELECT COUNT(*) AS c FROM reviews WHERE station_id = ?')
-        .get(req.params.id).c;
-      const rows = db
+      const total = Number(
+        (await db
+          .prepare('SELECT COUNT(*) AS c FROM reviews WHERE station_id = ?')
+          .get(req.params.id)).c,
+      );
+      const rows = await db
         .prepare(
           `SELECT r.*, u.name AS user_name FROM reviews r
            JOIN users u ON u.id = r.user_id
@@ -275,7 +270,7 @@ function createStationsRouter(db, { requireAuth }) {
         )
         .all(req.params.id, limit, (page - 1) * limit);
 
-      const aggregate = ratingAggregates(db, [req.params.id]).get(req.params.id) || {
+      const aggregate = (await ratingAggregates(db, [req.params.id])).get(req.params.id) || {
         rating: 0,
         reviewCount: 0,
       };
@@ -296,24 +291,26 @@ function createStationsRouter(db, { requireAuth }) {
   router.post(
     '/:id/reviews',
     requireAuth,
-    asyncHandler((req, res) => {
-      if (!stationExists(db, req.params.id)) throw ApiError.notFound('Station not found.');
+    asyncHandler(async (req, res) => {
+      if (!(await stationExists(db, req.params.id))) throw ApiError.notFound('Station not found.');
       const body = v.requireObjectBody(req.body);
       const rating = v.number(body.rating, 'rating', { min: 1, max: 5, integer: true });
       const title = v.str(body.title, 'Title', { min: 3, max: 120 });
       const comment = v.str(body.comment, 'Comment', { min: 5, max: 2000 });
 
       const timestamp = nowIso();
-      const existing = db
+      const existing = await db
         .prepare('SELECT id FROM reviews WHERE station_id = ? AND user_id = ?')
         .get(req.params.id, req.user.id);
 
       if (existing) {
-        db.prepare(
-          'UPDATE reviews SET rating = ?, title = ?, comment = ?, updated_at = ? WHERE id = ?',
-        ).run(rating, v.sanitizeText(title), v.sanitizeText(comment), timestamp, existing.id);
+        await db
+          .prepare(
+            'UPDATE reviews SET rating = ?, title = ?, comment = ?, updated_at = ? WHERE id = ?',
+          )
+          .run(rating, v.sanitizeText(title), v.sanitizeText(comment), timestamp, existing.id);
       } else {
-        db.prepare(
+        await db.prepare(
           `INSERT INTO reviews (id, station_id, user_id, rating, title, comment, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         ).run(
@@ -328,7 +325,7 @@ function createStationsRouter(db, { requireAuth }) {
         );
       }
 
-      const row = db
+      const row = await db
         .prepare(
           `SELECT r.*, u.name AS user_name FROM reviews r JOIN users u ON u.id = r.user_id
            WHERE r.station_id = ? AND r.user_id = ?`,
@@ -342,11 +339,11 @@ function createStationsRouter(db, { requireAuth }) {
   router.post(
     '/:id/favorite',
     requireAuth,
-    asyncHandler((req, res) => {
-      if (!stationExists(db, req.params.id)) throw ApiError.notFound('Station not found.');
-      db.prepare(
-        'INSERT OR IGNORE INTO favorites (user_id, station_id, created_at) VALUES (?, ?, ?)',
-      ).run(req.user.id, req.params.id, nowIso());
+    asyncHandler(async (req, res) => {
+      if (!(await stationExists(db, req.params.id))) throw ApiError.notFound('Station not found.');
+      await db
+        .prepare('INSERT OR IGNORE INTO favorites (user_id, station_id, created_at) VALUES (?, ?, ?)')
+        .run(req.user.id, req.params.id, nowIso());
       res.status(201).json({ success: true, data: { favorite: true } });
     }),
   );
@@ -354,11 +351,10 @@ function createStationsRouter(db, { requireAuth }) {
   router.delete(
     '/:id/favorite',
     requireAuth,
-    asyncHandler((req, res) => {
-      db.prepare('DELETE FROM favorites WHERE user_id = ? AND station_id = ?').run(
-        req.user.id,
-        req.params.id,
-      );
+    asyncHandler(async (req, res) => {
+      await db
+        .prepare('DELETE FROM favorites WHERE user_id = ? AND station_id = ?')
+        .run(req.user.id, req.params.id);
       res.json({ success: true, data: { favorite: false } });
     }),
   );
