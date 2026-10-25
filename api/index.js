@@ -3,9 +3,14 @@
 /**
  * Vercel serverless entry point for the Afterglow API.
  *
- * The Express app is created once per warm function instance and reused.
- * The database is Turso/libSQL in production (TURSO_DATABASE_URL) and the
- * local SQLite file is used for development.
+ * Vercel only routes one path segment past `/api` to a filesystem function in
+ * this project, so `vercel.json` rewrites every `/api/<rest>` request to
+ * `/api?__path=<rest>`. This handler restores the original URL (path and query)
+ * before handing the request to Express, which then routes it normally.
+ *
+ * The Express app is created once per warm function instance and reused. The
+ * database is Turso/libSQL in production (TURSO_DATABASE_URL) and the local
+ * SQLite file is used for development.
  */
 const { getDatabase } = require('../backend/src/db');
 const { createApp } = require('../backend/src/app');
@@ -24,8 +29,24 @@ async function bootstrap() {
   return createApp(db);
 }
 
+/** Undo the `/api?__path=` rewrite so Express sees the real path and query. */
+function restoreUrl(req) {
+  const raw = req.url || '/';
+  const queryIndex = raw.indexOf('?');
+  if (queryIndex === -1) return;
+
+  const params = new URLSearchParams(raw.slice(queryIndex + 1));
+  const rest = params.get('__path');
+  if (rest === null) return;
+  params.delete('__path');
+
+  const search = params.toString();
+  req.url = `/api/${rest.replace(/^\/+/, '')}${search ? `?${search}` : ''}`;
+}
+
 module.exports = async function handler(req, res) {
   try {
+    restoreUrl(req);
     if (!appPromise) {
       appPromise = bootstrap().catch((error) => {
         // Do not cache a failed bootstrap; the next request retries.
