@@ -39,14 +39,23 @@
 
     <!-- The hero photograph is the LCP element. React discovers it only after
          the entry bundle boots, so start the fetch here in parallel with the
-         JavaScript. The path matches the <img> in Hero exactly. -->
-    <link
-      rel="preload"
-      as="image"
-      href="/assets/hero-charging.webp"
-      type="image/webp"
-      fetchpriority="high"
-    />
+         JavaScript. The path matches the <img> in Hero exactly.
+
+         Injected only on the route that renders the hero: a static tag made
+         every other page download a 37 kB image it never used, which Chrome
+         reported as an unused preload. This runs while the head is parsed, so
+         the request still starts before the module bundle. -->
+    <script>
+      if (window.location.pathname === '/') {
+        var hero = document.createElement('link');
+        hero.rel = 'preload';
+        hero.as = 'image';
+        hero.href = '/assets/hero-charging.webp';
+        hero.type = 'image/webp';
+        hero.setAttribute('fetchpriority', 'high');
+        document.head.appendChild(hero);
+      }
+    </script>
 
     <meta name="theme-color" content="#0A0B0C" />
     <meta name="msapplication-TileColor" content="#C6FF00" />
