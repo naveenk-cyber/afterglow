@@ -21,6 +21,7 @@ import ButtonLink from '../components/ui/ButtonLink';
 import { buttonClasses } from '../components/ui/buttonStyles';
 import Input from '../components/ui/Input';
 import StationMap from '../components/common/StationMap';
+import Picture from '../components/ui/Picture';
 import { stationService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useFavorites } from '../hooks/useFavorites';
@@ -131,11 +132,14 @@ const StationDetailsPage: React.FC = () => {
     <div>
       {/* Hero photograph: premium EV charging at modern station */}
 <div className="relative mb-8 overflow-hidden border-b border-line bg-deep">
-        <img
+        <Picture
           src="/assets/charging-hardware.jpg"
           alt="A premium electric vehicle charging at a modern station, connector illuminated"
-          className="h-64 w-full object-cover sm:h-80 lg:h-[22rem]"
+          width={1200}
+          height={1600}
+          fetchPriority="high"
           decoding="async"
+          className="h-64 w-full object-cover sm:h-80 lg:h-[22rem]"
           onError={(event) => { event.currentTarget.style.display = 'none'; }}
         />
         <div

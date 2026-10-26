@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Box, Image as ImageIcon, MousePointer2, Zap } from 'lucide-react';
 import SectionHeading from '../ui/SectionHeading';
 import Badge from '../ui/Badge';
+import Picture from '../ui/Picture';
 import Button from '../ui/Button';
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
 
@@ -40,9 +41,11 @@ class SceneBoundary extends React.Component<
 function SceneFallback({ message }: { message: string }) {
   return (
     <div className="relative h-full w-full overflow-hidden bg-deep">
-      <img
+      <Picture
         src="/assets/hero-charging.jpg"
         alt="Electric vehicle charging connector plugged into a car"
+        width={1200}
+        height={798}
         className="h-full w-full object-cover opacity-80"
         loading="lazy"
       />

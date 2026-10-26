@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowRight, MapPin, Star, Zap } from 'lucide-react';
 import Backdrop from '../layout/Backdrop';
+import AmbientGlow from '../layout/AmbientGlow';
 import ButtonLink from '../ui/ButtonLink';
 import Badge from '../ui/Badge';
 import SearchBar from './SearchBar';
@@ -26,6 +27,7 @@ const Hero: React.FC = () => {
   return (
     <section className="relative overflow-hidden border-b border-line bg-deep text-deep-ink">
       <div className="ev-grid" aria-hidden="true" />
+      <AmbientGlow variant="hero" />
       <Backdrop variant="hero" />
 
       <div className="relative mx-auto max-w-[1280px] px-4 pb-10 pt-10 sm:px-6 sm:pt-12 lg:px-8 lg:pb-12 lg:pt-14">
@@ -82,12 +84,25 @@ const Hero: React.FC = () => {
 
           <div className="relative">
             <div className="relative overflow-hidden rounded-[18px] border border-white/10 bg-surface shadow-[0_30px_70px_-40px_rgb(0_0_0/0.95)]">
+              {/*
+                The LCP element. It points straight at the WebP (which
+                index.html preloads) instead of going through <picture>, so the
+                preload URL and the image URL are the same string and the
+                browser reuses the preloaded bytes. The JPEG stays as the
+                onError fallback for anything that cannot decode WebP.
+              */}
               <img
-                src="/assets/hero-charging.jpg"
+                src="/assets/hero-charging.webp"
                 alt="Electric vehicle charging at a lit station at dusk"
                 className="aspect-[16/10] w-full object-cover sm:aspect-[2/1] lg:aspect-[4/3]"
+                width={1200}
+                height={798}
                 fetchPriority="high"
                 decoding="async"
+                onError={(event) => {
+                  const image = event.currentTarget;
+                  if (!image.src.endsWith('.jpg')) image.src = '/assets/hero-charging.jpg';
+                }}
               />
               <div
                 className="pointer-events-none absolute inset-0"

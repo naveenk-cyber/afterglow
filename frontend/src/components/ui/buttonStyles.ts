@@ -28,8 +28,13 @@ const BASE =
 
 const VARIANTS: Record<ButtonVariant, string> = {
   // The one saturated action colour on the site.
-  primary: 'bg-brand text-on-accent hover:bg-brand-strong shadow-[0_12px_30px_-12px_rgb(198_255_0/0.45)]',
-  gradient: 'bg-brand text-on-accent hover:bg-brand-strong shadow-[0_12px_30px_-12px_rgb(198_255_0/0.45)]',
+  // The hover glow is the only place the accent is allowed to bloom.
+  primary:
+    'bg-brand text-on-accent shadow-[0_12px_30px_-12px_rgb(198_255_0/0.45)] ' +
+    'hover:bg-brand-strong hover:shadow-[0_16px_38px_-12px_rgb(198_255_0/0.6)]',
+  gradient:
+    'bg-brand text-on-accent shadow-[0_12px_30px_-12px_rgb(198_255_0/0.45)] ' +
+    'hover:bg-brand-strong hover:shadow-[0_16px_38px_-12px_rgb(198_255_0/0.6)]',
   // Quiet, elevated secondary.
   secondary: 'bg-surface-muted text-ink border border-line-strong hover:bg-[#202428] hover:border-[#4b5158]',
   ghost: 'bg-transparent text-ink border border-line-strong hover:bg-surface-muted hover:border-brand/60',

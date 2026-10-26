@@ -7,7 +7,9 @@ import TopRatedSpots from './home/TopRatedSpots';
 import HowItWorks from './home/HowItWorks';
 import ConnectorGuide from './home/ConnectorGuide';
 import CompareTeaser from './home/CompareTeaser';
+import DriverVoices from './home/DriverVoices';
 import ChargingShowcase from './home/ChargingShowcase';
+import AmbientGlow from './layout/AmbientGlow';
 import ChargingClub from './home/ChargingClub';
 import TrustPanel from './home/TrustPanel';
 import SectionHeading from './ui/SectionHeading';
@@ -58,31 +60,34 @@ const Home: React.FC = () => {
       <Hero />
 
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
-        <section className="py-10 lg:py-12" aria-labelledby="network-overview-heading">
-          <SectionHeading
-            id="network-overview-heading"
-            eyebrow="Network overview"
-            title="The catalogue, measured"
-            description="Live counts from the same station records the finder searches. Nothing here is a marketing estimate."
-            action={
-              <ButtonLink
-                to="/search"
-                variant="outline"
-                size="md"
-                rightIcon={<ArrowRight className="h-4 w-4" />}
-              >
-                Open the finder
-              </ButtonLink>
-            }
-          />
-          <PlatformFacts
-            stationCount={stations}
-            connectorStandards={connectorStandards}
-            cities={cities}
-            connectorMix={connectorMix}
-            isLoading={isLoading}
-            isDemo={source === 'demo'}
-          />
+        <section className="relative py-10 lg:py-12" aria-labelledby="network-overview-heading">
+          <AmbientGlow variant="section" />
+          <div className="relative">
+            <SectionHeading
+              id="network-overview-heading"
+              eyebrow="Network overview"
+              title="The catalogue, measured"
+              description="Live counts from the same station records the finder searches. Nothing here is a marketing estimate."
+              action={
+                <ButtonLink
+                  to="/search"
+                  variant="outline"
+                  size="md"
+                  rightIcon={<ArrowRight className="h-4 w-4" />}
+                >
+                  Open the finder
+                </ButtonLink>
+              }
+            />
+            <PlatformFacts
+              stationCount={stations}
+              connectorStandards={connectorStandards}
+              cities={cities}
+              connectorMix={connectorMix}
+              isLoading={isLoading}
+              isDemo={source === 'demo'}
+            />
+          </div>
         </section>
 
         <div className="h-px bg-line" />
@@ -109,6 +114,13 @@ const Home: React.FC = () => {
 
         <div className="pb-10 lg:pb-14">
           <CompareTeaser />
+        </div>
+
+        <div className="relative pb-10 lg:pb-14">
+          <AmbientGlow variant="section" />
+          <div className="relative">
+            <DriverVoices />
+          </div>
         </div>
 
         <div className="pb-10 lg:pb-14">

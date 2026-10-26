@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, authService, bookingService, stationService, tokenStore } from './api';
+import {
+  ApiError,
+  authService,
+  bookingService,
+  setUnauthorizedHandler,
+  stationService,
+  tokenStore,
+} from './api';
 import { STORAGE_KEYS } from '../utils/constants';
 
 /** Build a fetch Response stub without depending on a real server. */
@@ -81,6 +88,35 @@ describe('auth service', () => {
     const result = await authService.login({ email: 'demo@afterglow.test', password: 'Demo1234!' });
     expect(result.token).toBe('session-token');
     expect(tokenStore.get()).toBe('session-token');
+  });
+
+  it('does not treat a rejected session probe as an expiry', async () => {
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(errorEnvelope('UNAUTHORIZED', 'Not signed in'), 401),
+    );
+
+    await expect(authService.me()).rejects.toBeInstanceOf(ApiError);
+    expect(handler).not.toHaveBeenCalled();
+    setUnauthorizedHandler(null);
+  });
+
+  it('still reports an expired session from an authenticated request', async () => {
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(errorEnvelope('UNAUTHORIZED', 'Session expired'), 401),
+    );
+
+    await expect(bookingService.createBooking({
+      stationId: 'st-1',
+      connectorType: 'CCS',
+      startTime: '2026-11-01T10:00:00.000Z',
+      durationMinutes: 60,
+    })).rejects.toBeInstanceOf(ApiError);
+    expect(handler).toHaveBeenCalledTimes(1);
+    setUnauthorizedHandler(null);
   });
 
   it('clears the local session on logout even when the API call fails', async () => {

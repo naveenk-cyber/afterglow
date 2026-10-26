@@ -5,6 +5,7 @@ import type { ChargingStation } from '../../types';
 import Badge from '../ui/Badge';
 import StationStatusBadge from './StationStatusBadge';
 import ButtonLink from '../ui/ButtonLink';
+import Picture from '../ui/Picture';
 import { formatDistance, formatPrice } from '../../utils/helpers';
 
 interface StationCardProps {
@@ -134,9 +135,11 @@ const StationCard: React.FC<StationCardProps> = ({
         >
           <Zap className="h-8 w-8 text-line-strong" strokeWidth={1.25} />
         </span>
-        <img
+        <Picture
           src={photo.src}
           alt={photo.alt}
+          width={800}
+          height={500}
           loading="lazy"
           decoding="async"
           className="relative w-full aspect-[16/10] object-cover"

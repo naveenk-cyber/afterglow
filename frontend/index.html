@@ -37,6 +37,17 @@
     />
     <meta name="twitter:image" content="/assets/hero-charging.jpg" />
 
+    <!-- The hero photograph is the LCP element. React discovers it only after
+         the entry bundle boots, so start the fetch here in parallel with the
+         JavaScript. The path matches the <img> in Hero exactly. -->
+    <link
+      rel="preload"
+      as="image"
+      href="/assets/hero-charging.webp"
+      type="image/webp"
+      fetchpriority="high"
+    />
+
     <meta name="theme-color" content="#0A0B0C" />
     <meta name="msapplication-TileColor" content="#C6FF00" />
 

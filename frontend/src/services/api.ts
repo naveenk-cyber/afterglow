@@ -63,6 +63,15 @@ interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   signal?: AbortSignal;
+  /**
+   * Do not run the global "session expired" handler on a 401.
+   *
+   * Used by the session probe: asking "is anyone signed in?" and being told
+   * "no" is the normal signed-out path, not an expiry. Firing the handler
+   * there cleared the whole query cache mid-flight, which left the landing
+   * page's catalogue query stuck on its skeletons for signed-out visitors.
+   */
+  skipUnauthorizedHandler?: boolean;
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -118,7 +127,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
     if (response.status === 401) {
       tokenStore.clear();
-      unauthorizedHandler?.();
+      if (!options.skipUnauthorizedHandler) unauthorizedHandler?.();
     }
     throw new ApiError(message, code, response.status, envelope?.error?.details);
   }
@@ -170,7 +179,9 @@ export const authService = {
   },
 
   async me(): Promise<User> {
-    const data = await request<{ user: User }>('/auth/me');
+    // A 401 here means "nobody is signed in", which is a valid answer rather
+    // than an expiry — see RequestOptions.skipUnauthorizedHandler.
+    const data = await request<{ user: User }>('/auth/me', { skipUnauthorizedHandler: true });
     return data.user;
   },
 

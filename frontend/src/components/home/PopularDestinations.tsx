@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, MapPin } from 'lucide-react';
 import SectionHeading from '../ui/SectionHeading';
+import Picture from '../ui/Picture';
 import { useStationCatalog } from '../../hooks/useStationCatalog';
 
 const PHOTOS = [
@@ -72,9 +73,11 @@ const PopularDestinations: React.FC = () => {
                 >
                   <MapPin className="h-7 w-7 text-line-strong" strokeWidth={1.25} />
                 </span>
-                <img
+                <Picture
                   src={photo.src}
                   alt={photo.alt}
+                  width={800}
+                  height={400}
                   loading="lazy"
                   decoding="async"
                   className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"

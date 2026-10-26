@@ -1,6 +1,7 @@
 import React from 'react';
 import Header from './Header';
 import Footer from './Footer';
+import ScrollManager from './ScrollManager';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 
 type MainLayoutProps = {
@@ -22,6 +23,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   return (
     <div className="flex min-h-screen flex-col bg-canvas text-ink">
+      <ScrollManager />
+
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-full focus:bg-brand focus:px-5 focus:py-2.5 focus:text-sm focus:font-semibold focus:text-on-accent"

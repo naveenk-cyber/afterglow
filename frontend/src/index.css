@@ -149,8 +149,25 @@
 
   html {
     scroll-behavior: smooth;
+    /* The header is sticky at 60px; anchored targets need to clear it. */
+    scroll-padding-top: 84px;
     background-color: var(--color-canvas);
     color-scheme: dark;
+  }
+
+  /* Skip link and hash targets land on the heading, not under the header. */
+  [id] {
+    scroll-margin-top: 84px;
+  }
+
+  /* Baseline keyboard focus.
+     Zero specificity (`:where`) inside the base layer, so a component that
+     defines its own treatment — the ring on `Button`, the ring on an input —
+     still wins. This only shows up on controls that would otherwise have no
+     visible focus state at all, such as plain text links in the footer. */
+  :where(a, button, [role='button'], input, select, textarea, summary):focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
   }
 
   body {
@@ -332,14 +349,41 @@
   .ev-grid {
     position: absolute;
     inset: 0;
+    overflow: hidden;
     pointer-events: none;
-    background-image:
-      linear-gradient(to right, rgb(255 255 255 / 0.032) 1px, transparent 1px),
-      linear-gradient(to bottom, rgb(255 255 255 / 0.032) 1px, transparent 1px);
-    background-size: 28px 28px;
-    background-position: center top;
+    --ev-grid-cell: 28px;
     -webkit-mask-image: radial-gradient(125% 92% at 18% 0%, #000 8%, transparent 74%);
     mask-image: radial-gradient(125% 92% at 18% 0%, #000 8%, transparent 74%);
+  }
+
+  /* The lines sit on an oversized layer so the drift can be a transform —
+     compositor-only — instead of repainting an animated background-position. */
+  .ev-grid::before {
+    content: '';
+    position: absolute;
+    inset: -60%;
+    background-image:
+      linear-gradient(to right, rgb(255 255 255 / 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(255 255 255 / 0.03) 1px, transparent 1px);
+    background-size: var(--ev-grid-cell) var(--ev-grid-cell);
+    background-position: center top;
+    animation: ev-grid-drift 72s linear infinite;
+    will-change: transform;
+  }
+
+  /* One slow lime field crossing the grid: light moving over a surface, not a
+     scrolling texture. Kept far below text contrast thresholds. */
+  .ev-grid::after {
+    content: '';
+    position: absolute;
+    inset: -20%;
+    background: radial-gradient(
+      32rem 24rem at 24% 16%,
+      rgb(198 255 0 / 0.05),
+      rgb(198 255 0 / 0.016) 46%,
+      transparent 72%
+    );
+    animation: ev-grid-sheen 34s ease-in-out infinite alternate;
   }
 
   .ev-grid--center {
@@ -349,7 +393,19 @@
 
   @media (max-width: 767px) {
     .ev-grid {
-      background-size: 24px 24px;
+      --ev-grid-cell: 24px;
+    }
+
+    /* Phones paint a smaller canvas, so the same fields read brighter: dial the
+       decorative layers back instead of letting them compete with the text.
+       Opacity goes on the wrapper (the individual fields carry their own
+       utility classes, and those would win inside this cascade layer). */
+    .ev-ambient {
+      opacity: 0.55;
+    }
+
+    .ev-grid::after {
+      opacity: 0.5;
     }
   }
 
@@ -379,11 +435,18 @@
   }
 
   .modern-card:hover {
-    border-color: var(--color-line-strong);
-    box-shadow: var(--shadow-card-hover);
+    border-color: color-mix(in srgb, var(--color-brand) 26%, var(--color-line-strong));
+    box-shadow: var(--shadow-card-hover), 0 0 0 1px rgb(198 255 0 / 0.05);
   }
 
   /* -------- Primary action --------------------------------------------- */
+  /* Cards that should acknowledge the pointer without lifting the layout. */
+  .ev-hover-glow:hover,
+  .ev-hover-glow:focus-visible {
+    border-color: color-mix(in srgb, var(--color-brand) 38%, var(--color-line));
+    box-shadow: var(--shadow-card-hover), 0 0 0 1px rgb(198 255 0 / 0.06);
+  }
+
   .ev-cta {
     background-color: var(--color-brand);
     color: var(--color-on-accent);
@@ -484,6 +547,47 @@
     border-radius: 999px;
     background: radial-gradient(circle, rgb(198 255 0 / 0.12), transparent 65%);
     filter: blur(22px);
+  }
+
+  /* -------- Ambient light ------------------------------------------------
+     Large, extremely low-opacity radial fields. Pure gradients with no blur
+     filter, so each one is a single paint and never forces the expensive
+     re-rasterisation that big blurred layers cause. Decorative and inert. */
+  .ev-ambient {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .ev-ambient > span {
+    position: absolute;
+    border-radius: 999px;
+    pointer-events: none;
+  }
+
+  .ev-glow {
+    background: radial-gradient(
+      circle,
+      rgb(198 255 0 / 0.085),
+      rgb(198 255 0 / 0.03) 44%,
+      transparent 72%
+    );
+  }
+
+  .ev-glow--deep {
+    background: radial-gradient(
+      circle,
+      rgb(44 104 22 / 0.2),
+      rgb(20 52 14 / 0.09) 48%,
+      transparent 74%
+    );
+  }
+
+  .ev-glow--drift {
+    animation: ev-glow-drift 42s ease-in-out infinite alternate;
+    will-change: transform, opacity;
   }
 
   .ev-medallion {
@@ -620,6 +724,39 @@
   }
 }
 
+/* Exactly one grid cell of travel, so the loop is seamless. */
+@keyframes ev-grid-drift {
+  to {
+    transform: translate3d(
+      calc(var(--ev-grid-cell) * -1),
+      calc(var(--ev-grid-cell) * -1),
+      0
+    );
+  }
+}
+
+@keyframes ev-grid-sheen {
+  from {
+    transform: translate3d(-6%, -4%, 0);
+    opacity: 0.55;
+  }
+  to {
+    transform: translate3d(8%, 6%, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes ev-glow-drift {
+  from {
+    transform: translate3d(-2%, 1%, 0) scale(1);
+    opacity: 0.7;
+  }
+  to {
+    transform: translate3d(3%, -2%, 0) scale(1.06);
+    opacity: 1;
+  }
+}
+
 @keyframes ev-fade {
   from {
     opacity: 0;
@@ -667,6 +804,12 @@
   }
 
   .ev-halo-ring {
+    animation: none;
+  }
+
+  .ev-grid::before,
+  .ev-grid::after,
+  .ev-glow--drift {
     animation: none;
   }
 }

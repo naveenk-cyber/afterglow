@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowRight, Check, Crown } from 'lucide-react';
 import ButtonLink from '../ui/ButtonLink';
+import Picture from '../ui/Picture';
 
 const BENEFITS = [
   'Priority reservations at partner stations',
@@ -13,9 +14,11 @@ const ChargingClub: React.FC = () => (
     aria-labelledby="membership-cta-heading"
     className="relative overflow-hidden rounded-[18px] border border-line bg-deep"
   >
-    <img
+    <Picture
       src="/assets/membership-premium.jpg"
       alt="Electric vehicle on a coastal road at dusk"
+      width={1200}
+      height={800}
       loading="lazy"
       decoding="async"
       className="absolute inset-0 h-full w-full object-cover opacity-60"
