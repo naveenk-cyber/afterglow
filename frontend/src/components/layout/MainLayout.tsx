@@ -1,6 +1,7 @@
 import React from 'react';
 import Header from './Header';
 import Footer from './Footer';
+import DeveloperProfile from './DeveloperProfile';
 import ScrollManager from './ScrollManager';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 
@@ -37,6 +38,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <main id="main-content" tabIndex={-1} className="flex-1">
         {children}
       </main>
+
+      <DeveloperProfile />
 
       <Footer />
     </div>
