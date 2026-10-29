@@ -12,7 +12,7 @@ const BENEFITS = [
 const ChargingClub: React.FC = () => (
   <section
     aria-labelledby="membership-cta-heading"
-    className="relative overflow-hidden rounded-[18px] border border-line bg-deep"
+    className="ev-photo-scope relative overflow-hidden rounded-[18px] border border-line bg-deep"
   >
     <Picture
       src="/assets/membership-premium.jpg"

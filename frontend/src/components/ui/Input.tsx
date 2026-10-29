@@ -64,7 +64,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
               'focus:outline-none focus:ring-2 focus:ring-brand/30',
               error
                 ? 'border-error/60 focus:border-error'
-                : 'border-line-strong hover:border-[#4b5158] focus:border-brand',
+                : 'border-line-strong hover:border-line-hover focus:border-brand',
               leftIcon ? 'pl-10' : 'pl-3.5',
               rightIcon || showPasswordToggle ? 'pr-10' : 'pr-3.5',
               'disabled:cursor-not-allowed disabled:opacity-55',
@@ -81,7 +81,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
                 <button
                   type="button"
                   onClick={() => setShowPassword((value) => !value)}
-                  className="grid h-8 w-8 place-items-center rounded-full text-ink-subtle transition-colors hover:bg-white/5 hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
+                  className="grid h-8 w-8 place-items-center rounded-full text-ink-subtle transition-colors hover:bg-band-fill hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -18,6 +18,8 @@ import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Wordmark from '../components/ui/Wordmark';
+import GoogleSignInButton from '../components/auth/GoogleSignInButton';
+import { safeInternalPath } from '../services/supabase';
 
 const signupSchema = z
   .object({
@@ -52,8 +54,16 @@ const BENEFITS = [
 
 const SignupPage: React.FC = () => {
   const [submitError, setSubmitError] = useState('');
-  const { signup, isLoading } = useAuth();
+  const { signup, isLoading, googleSignInEnabled } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Same contract as the sign-in page: land where the driver was heading, or
+  // on the dashboard.
+  const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
+  const returnTo = safeInternalPath(
+    from?.pathname ? `${from.pathname}${from.search ?? ''}` : null,
+  );
 
   const {
     register,
@@ -112,6 +122,19 @@ const SignupPage: React.FC = () => {
             <p className="mt-2 text-sm text-ink-muted">
               Free to start. Search and compare stations without a plan.
             </p>
+
+            {googleSignInEnabled && (
+              <div className="mt-8 space-y-5">
+                <GoogleSignInButton returnTo={returnTo} label="Sign up with Google" />
+                <div className="flex items-center gap-3">
+                  <span className="h-px flex-1 bg-line" aria-hidden="true" />
+                  <span className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-ink-subtle">
+                    or use your email
+                  </span>
+                  <span className="h-px flex-1 bg-line" aria-hidden="true" />
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-5" noValidate>
               {submitError && (
@@ -257,7 +280,7 @@ const SignupPage: React.FC = () => {
         </div>
 
         {/* Visual panel */}
-        <div className="relative hidden overflow-hidden bg-deep lg:block">
+        <div className="ev-photo-scope relative hidden overflow-hidden bg-deep lg:block">
           <img
             src="/assets/station-2.jpg"
             alt="Electric car charging at a scenic stop at sunset"

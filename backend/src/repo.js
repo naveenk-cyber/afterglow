@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const config = require('./config');
 const { transaction } = require('./db');
 const { ApiError } = require('./errors');
+const { OAUTH_ONLY_PASSWORD_HASH } = require('./security');
 const {
   serializeStation,
   serializeVehicle,
@@ -21,6 +22,59 @@ async function findUserById(db, id) {
 
 async function findUserByEmail(db, email) {
   return db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+}
+
+async function findUserByGoogleSub(db, sub) {
+  return db.prepare('SELECT * FROM users WHERE google_sub = ?').get(sub);
+}
+
+/**
+ * Link a verified Google identity to an existing account (matched by email).
+ * The stored avatar is only filled in when the account does not have one.
+ */
+async function attachGoogleIdentity(db, userId, { sub, avatar = null }) {
+  await db
+    .prepare(
+      'UPDATE users SET google_sub = ?, avatar = COALESCE(avatar, ?), updated_at = ? WHERE id = ?',
+    )
+    .run(sub, avatar, nowIso(), userId);
+  return findUserById(db, userId);
+}
+
+/**
+ * Create an account for a verified Google identity.
+ *
+ * No consent was given for email, so every notification channel starts off, and
+ * the password column holds a sentinel that no password can match.
+ */
+async function createOAuthUser(db, { email, name, avatar = null, googleSub }) {
+  const id = newId();
+  const timestamp = nowIso();
+  const preferences = JSON.stringify({
+    units: 'imperial',
+    language: 'en',
+    notifications: { email: false, push: false, sms: false },
+  });
+
+  await db
+    .prepare(
+      `INSERT INTO users (id, email, password_hash, name, phone, avatar, membership_level, preferences_json, google_sub, created_at, updated_at)
+       VALUES (?, ?, ?, ?, NULL, ?, 'Free', ?, ?, ?, ?)`,
+    )
+    .run(
+      id,
+      email,
+      OAUTH_ONLY_PASSWORD_HASH,
+      name,
+      avatar,
+      preferences,
+      googleSub,
+      timestamp,
+      timestamp,
+    );
+
+  await ensureWallet(db, id);
+  return findUserById(db, id);
 }
 
 async function getVehicles(db, userId) {
@@ -286,6 +340,9 @@ module.exports = {
   newId,
   findUserById,
   findUserByEmail,
+  findUserByGoogleSub,
+  attachGoogleIdentity,
+  createOAuthUser,
   getVehicles,
   publicUser,
   ratingAggregates,

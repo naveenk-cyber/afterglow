@@ -156,6 +156,23 @@ export const authService = {
     return data;
   },
 
+  /**
+   * Exchange a Google identity (a Supabase access token) for an Afterglow
+   * session. The API verifies the token with Supabase and replies with the
+   * same HttpOnly cookie credentials as a password sign-in, so nothing else in
+   * the app needs to know which method was used.
+   */
+  async loginWithSupabase(
+    accessToken: string,
+  ): Promise<{ user: User; token?: string; expiresAt?: string }> {
+    const data = await request<{ user: User; token?: string; expiresAt?: string }>(
+      '/auth/oauth/supabase',
+      { method: 'POST', body: { accessToken } },
+    );
+    if (data.token) tokenStore.set(data.token);
+    return data;
+  },
+
   async signup(userData: SignupForm): Promise<{ user: User; token?: string; expiresAt?: string }> {
     const parts = (userData.firstName || userData.name || 'Afterglow Driver').trim().split(/\s+/);
     const firstName = parts[0] || 'Afterglow';

@@ -9,6 +9,11 @@ import {
   tokenStore,
   userService,
 } from '../services/api';
+import {
+  clearSupabaseSession,
+  googleSignInEnabled,
+  startGoogleSignIn,
+} from '../services/supabase';
 
 interface AuthContextType {
   user: User | null;
@@ -19,6 +24,18 @@ interface AuthContextType {
   sessionError: string | null;
   login: (credentials: LoginForm) => Promise<void>;
   signup: (userData: SignupForm) => Promise<void>;
+  /** True when this build can offer "Continue with Google". */
+  googleSignInEnabled: boolean;
+  /**
+   * Hand the browser to Google. Resolves only when the redirect could not be
+   * started, so a resolved call is not a completed sign-in.
+   */
+  loginWithGoogle: (returnTo?: string) => Promise<void>;
+  /**
+   * Finish a Google sign-in: swap the Supabase access token for an Afterglow
+   * session. Used by /auth/callback only.
+   */
+  completeGoogleLogin: (accessToken: string) => Promise<User>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   /** Persist a partial profile through the API and update local state. */
@@ -116,12 +133,32 @@ export const useAuthProvider = () => {
     }
   };
 
+  const loginWithGoogle = async (returnTo?: string) => {
+    setSessionError(null);
+    await startGoogleSignIn(returnTo);
+  };
+
+  const completeGoogleLogin = async (accessToken: string): Promise<User> => {
+    setIsLoading(true);
+    setSessionError(null);
+    try {
+      const result = await authService.loginWithSupabase(accessToken);
+      setUser(result.user);
+      return result.user;
+    } finally {
+      if (mounted.current) setIsLoading(false);
+    }
+  };
+
   const logout = async () => {
     setIsLoading(true);
     try {
       await authService.logout();
     } finally {
       clearSession();
+      // Drop the Google copy too, so a shared machine is not left signed in to
+      // Google (and cannot silently re-enter Afterglow through it).
+      await clearSupabaseSession();
       setIsLoading(false);
     }
   };
@@ -144,6 +181,9 @@ export const useAuthProvider = () => {
     sessionError,
     login,
     signup,
+    googleSignInEnabled,
+    loginWithGoogle,
+    completeGoogleLogin,
     logout,
     refreshUser,
     updateUser,

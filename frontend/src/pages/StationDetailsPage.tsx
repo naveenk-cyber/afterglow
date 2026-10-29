@@ -131,7 +131,7 @@ const StationDetailsPage: React.FC = () => {
   return (
     <div>
       {/* Hero photograph: premium EV charging at modern station */}
-<div className="relative mb-8 overflow-hidden border-b border-line bg-deep">
+<div className="ev-photo-scope relative mb-8 overflow-hidden border-b border-line bg-deep">
         <Picture
           src="/assets/charging-hardware.jpg"
           alt="A premium electric vehicle charging at a modern station, connector illuminated"

@@ -4,17 +4,18 @@
   proxies `/api` to it, so the browser calls same-origin `/api/v1`.
 * **Content type:** `application/json` for every request body and response.
 * **Authentication:** `Authorization: Bearer <session token>` on routes marked
-  *auth* below. The token comes from `/auth/signup` or `/auth/login` and expires
-  after `SESSION_TTL_HOURS` (default 168 h).
+  *auth* below. The token comes from `/auth/signup`, `/auth/login` or
+  `/auth/oauth/supabase` and expires after `SESSION_TTL_HOURS` (default 168 h).
 * **Envelope:** `{ "success": true, "data": … }` or
   `{ "success": false, "error": { "code", "message", "details"? } }`.
 * **Error codes:** `VALIDATION_ERROR` (400), `UNAUTHORIZED` (401), `FORBIDDEN`
   (403), `NOT_FOUND` (404), `CONFLICT` (409), `RATE_LIMITED` (429),
+  `OAUTH_NOT_CONFIGURED` (503), `OAUTH_MISCONFIGURED` (503), `OAUTH_UNAVAILABLE` (503/504),
   `INTERNAL_ERROR` (500).
 * **Rate limits:** 600 requests / 5 min per IP for the whole API; sign-up and the
   two password-reset routes additionally allow 30 attempts / 15 min.
 
-**34 routes in total:** 2 health routes plus 32 under `/api/v1` — 6 auth, 8 station,
+**35 routes in total:** 2 health routes plus 33 under `/api/v1` — 7 auth, 8 station,
 7 booking and 11 user routes.
 
 ---
@@ -30,7 +31,7 @@
 { "success": true, "data": { "status": "ok", "service": "chargeease-api", "version": "1.0.0", "time": "2026-10-15T05:31:39.074Z" } }
 ```
 
-## Authentication — `/api/v1/auth` (6 routes)
+## Authentication — `/api/v1/auth` (7 routes)
 
 ### POST `/auth/signup`
 Creates a user, an empty simulated wallet and a session in one transaction.
@@ -55,6 +56,41 @@ Body: `{ "email", "password" }`.
 Returns the same `{ user, token, expiresAt }` payload, or
 `401 UNAUTHORIZED` — *"Invalid email or password."* (the message never says which
 field was wrong).
+
+### POST `/auth/oauth/supabase`
+Google sign-in, with Supabase as the OAuth broker. The browser completes the OAuth
+round trip against Supabase and posts the resulting access token here.
+
+| Field | Type | Rules |
+| --- | --- | --- |
+| `accessToken` | string | 20–4096 chars; the Supabase access token for a Google identity |
+
+The API verifies the token with Supabase (`GET {SUPABASE_URL}/auth/v1/user`) rather
+than decoding it locally, so no JWT secret is shared with Supabase and an asymmetric
+signing key works unchanged. `SUPABASE_ANON_KEY` must hold the publishable key (or a
+legacy anon key); a secret or `service_role` key is refused with
+`OAUTH_MISCONFIGURED` before any outbound request, so the API can never mask a
+privileged key configured by mistake. No Supabase request is made in that case. Only `app_metadata.provider === "google"` is accepted:
+the endpoint proves control of a Google account and must not be usable to claim an
+account by asserting an email address.
+
+The verified identity is matched to a user by its Google subject, then by email, so
+an existing password account is linked rather than duplicated. A brand-new account
+is created with no password (the stored hash can never match, so the password form
+cannot enter it), an empty simulated wallet and notifications off. The response is
+the standard session payload, and the usual HttpOnly cookie is set.
+
+```json
+200 { "success": true, "data": { "user": { … }, "token": "…", "expiresAt": "2026-11-02T…Z" } }
+400 VALIDATION_ERROR      // missing/short accessToken, or a non-Google Supabase identity
+401 UNAUTHORIZED          // Supabase rejected the token, or the profile had no email
+409 CONFLICT              // the account is already linked to a different Google account
+503 OAUTH_NOT_CONFIGURED  // neither SUPABASE_URL nor SUPABASE_ANON_KEY is set
+503 OAUTH_MISCONFIGURED   // only one of the pair is set (the message names the missing
+                          // variable), the URL is malformed, or the key is a
+                          // secret/service_role key
+503/504 OAUTH_UNAVAILABLE // Supabase could not be reached (or timed out); nothing was issued
+```
 
 ### POST `/auth/logout` · *auth*
 Marks the current session revoked server-side and returns

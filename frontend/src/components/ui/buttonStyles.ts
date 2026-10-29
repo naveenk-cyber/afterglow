@@ -36,11 +36,13 @@ const VARIANTS: Record<ButtonVariant, string> = {
     'bg-brand text-on-accent shadow-[0_12px_30px_-12px_rgb(198_255_0/0.45)] ' +
     'hover:bg-brand-strong hover:shadow-[0_16px_38px_-12px_rgb(198_255_0/0.6)]',
   // Quiet, elevated secondary.
-  secondary: 'bg-surface-muted text-ink border border-line-strong hover:bg-[#202428] hover:border-[#4b5158]',
+  secondary: 'bg-surface-muted text-ink border border-line-strong hover:bg-line hover:border-line-hover',
   ghost: 'bg-transparent text-ink border border-line-strong hover:bg-surface-muted hover:border-brand/60',
-  glass: 'bg-white/10 border border-white/20 text-deep-ink hover:bg-white/16',
+  // Sits on the dark hero/footer bands: band tokens keep it a translucent white
+  // lift in the dark theme and a tinted-ink lift once the bands turn light.
+  glass: 'bg-band-fill-strong border border-band-line-xl text-ink hover:bg-band-line-xl',
   outline: 'bg-transparent border border-brand/55 text-brand hover:bg-brand-soft hover:border-brand',
-  danger: 'bg-error text-[#1b0b0b] hover:brightness-95',
+  danger: 'bg-error text-on-error hover:brightness-95',
   destructive: 'bg-error-soft text-error-ink border border-error/35 hover:bg-error/20',
 };
 

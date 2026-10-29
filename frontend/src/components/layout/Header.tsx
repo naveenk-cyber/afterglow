@@ -15,6 +15,7 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../ui/Button';
 import ButtonLink from '../ui/ButtonLink';
+import ThemeToggle from '../ui/ThemeToggle';
 import Wordmark from '../ui/Wordmark';
 
 const NAV_LINKS = [
@@ -100,7 +101,7 @@ const Header: React.FC = () => {
               className={`relative rounded-full px-3.5 py-1.5 text-[0.875rem] font-medium transition-colors ${
                 isActive(link.href)
                   ? 'text-ink'
-                  : 'text-ink-muted hover:bg-white/[0.04] hover:text-ink'
+                  : 'text-ink-muted hover:bg-band-fill hover:text-ink'
               }`}
             >
               {link.name}
@@ -115,6 +116,7 @@ const Header: React.FC = () => {
         </nav>
 
         <div className="hidden items-center gap-2 lg:flex">
+          <ThemeToggle />
           {isAuthenticated && user ? (
             <div className="relative" ref={accountRef}>
               <button
@@ -191,16 +193,21 @@ const Header: React.FC = () => {
           )}
         </div>
 
-        <button
-          type="button"
-          className="grid h-9 w-9 place-items-center rounded-full border border-line text-ink transition-colors hover:bg-surface-muted lg:hidden"
-          onClick={() => setMobileOpen((open) => !open)}
-          aria-expanded={mobileOpen}
-          aria-controls="mobile-navigation"
-          aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-        >
-          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        {/* Below `lg` the nav collapses, so the theme switch moves into the
+            bar next to the menu button instead of disappearing with it. */}
+        <div className="flex items-center gap-2 lg:hidden">
+          <ThemeToggle />
+          <button
+            type="button"
+            className="grid h-9 w-9 place-items-center rounded-full border border-line text-ink transition-colors hover:bg-surface-muted"
+            onClick={() => setMobileOpen((open) => !open)}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-navigation"
+            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+          >
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
 
       <AnimatePresence>

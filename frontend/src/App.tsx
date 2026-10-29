@@ -28,6 +28,8 @@ const LoginPage = React.lazy(() => import('./pages/auth/LoginPage'));
 const SignupPage = React.lazy(() => import('./pages/SignupPage'));
 const ForgotPasswordPage = React.lazy(() => import('./pages/ForgotPasswordPage'));
 const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage'));
+// Landing point for the Google round trip (Supabase posts the browser back here).
+const GoogleCallbackPage = React.lazy(() => import('./pages/auth/GoogleCallbackPage'));
 
 // Components
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -72,6 +74,7 @@ const App: React.FC = () => {
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/auth/callback" element={<GoogleCallbackPage />} />
 
               {/* Protected Routes */}
               <Route path="/dashboard" element={

@@ -59,6 +59,10 @@
   /* Hairlines */
   --color-line: #202428;
   --color-line-strong: #2c3237;
+  --color-line-hover: #4b5158;
+
+  /* Text on a filled error surface. */
+  --color-on-error: #1b0b0b;
 
   /* Accent — neon lime, used selectively for primary action + emphasis */
   --color-brand: #c6ff00;
@@ -137,6 +141,269 @@
   --color-orange-600: #a8dd00;
   --color-orange-700: #86b000;
   --color-orange-900: #1c2205;
+
+  /* Band chrome — translucent white in the dark theme.
+     Used by the hero, footer and page-hero bands for hairlines and fills that
+     have to survive the theme flip: `white/10` is invisible on a light band,
+     so these carry a dark-theme value that is identical to the literal it
+     replaced, and a tinted-ink value for light mode. */
+  --color-band-line: rgb(255 255 255 / 0.1);
+  --color-band-line-md: rgb(255 255 255 / 0.12);
+  --color-band-line-strong: rgb(255 255 255 / 0.15);
+  --color-band-line-xl: rgb(255 255 255 / 0.2);
+  --color-band-fill: rgb(255 255 255 / 0.04);
+  --color-band-fill-md: rgb(255 255 255 / 0.06);
+  --color-band-fill-strong: rgb(255 255 255 / 0.1);
+}
+
+/* ==========================================================================
+   Decorative fields — dark defaults
+   --------------------------------------------------------------------------
+   The ambient light, the drifting grid and the map chrome all used literal
+   lime/white values. They are tokens now so the light theme can swap them for
+   restrained blue light and charcoal grid lines without touching a component.
+   ========================================================================== */
+:root {
+  --ev-grid-line: rgb(255 255 255 / 0.03);
+  --ev-grid-sheen: rgb(198 255 0 / 0.05);
+  --ev-grid-sheen-2: rgb(198 255 0 / 0.016);
+  --ev-glow: rgb(198 255 0 / 0.085);
+  --ev-glow-2: rgb(198 255 0 / 0.03);
+  --ev-glow-deep: rgb(44 104 22 / 0.2);
+  --ev-glow-deep-2: rgb(20 52 14 / 0.09);
+  --ev-bubble: rgb(198 255 0 / 0.1);
+  --ev-halo: rgb(255 255 255 / 0.05);
+  --ev-halo-inner: rgb(255 255 255 / 0.035);
+  --ev-halo-accent: rgb(198 255 0 / 0.03);
+  --ev-halo-glow: rgb(198 255 0 / 0.12);
+  --ev-medallion-ring: rgb(198 255 0 / 0.22);
+  --ev-shimmer: rgb(255 255 255 / 0.05);
+  --ev-accent-halo: rgb(198 255 0 / 0.05);
+  --ev-accent-halo-2: rgb(198 255 0 / 0.06);
+  --ev-ring-accent: rgb(198 255 0 / 0.22);
+  --ev-glow-shadow: rgb(198 255 0 / 0.5);
+  --ev-scroll-thumb: #2f3337;
+  --ev-scroll-thumb-hover: #444a4f;
+  --ev-map-bg: #101214;
+  --ev-attr-bg: rgb(10 11 12 / 0.75);
+  --ev-map-dot-ring: #ffffff;
+  --ev-map-dot-halo: rgb(255 255 255 / 0.12);
+  --ev-map-dot-halo-selected: rgb(198 255 0 / 0.24);
+  --ev-map-dot-shadow: 0 6px 14px rgb(0 0 0 / 0.45);
+  --ev-map-dot-shadow-strong: 0 8px 18px rgb(0 0 0 / 0.5);
+}
+
+/* ==========================================================================
+   Light theme
+   --------------------------------------------------------------------------
+   The dark palette above stays the baseline and is not modified: `@theme`
+   defines it on `:root`, and every utility resolves through `var(--color-*)`,
+   so one block of variable overrides flips the whole product without a single
+   component change. `:root.light` rather than `.light` so it outranks the
+   `:root` block Tailwind emits for `@theme`, regardless of output order.
+
+   Accent rule: lime is dark-theme only. In light mode the accent is a single
+   blue (#2563EB) with a #DBEAFE tint for soft fills. Lime survives solely
+   inside `.ev-photo-scope` (photography and the 3D stage), where it is part of
+   the image rather than part of the UI.
+   ========================================================================== */
+:root.light {
+  color-scheme: light;
+
+  /* Surfaces */
+  --color-canvas: #f5f8fc;
+  --color-surface: #ffffff;
+  --color-surface-muted: #edf2f8;
+  --color-surface-sunken: #e8eff7;
+  --color-deep: #edf2f8;
+  --color-deep-ink: #101828;
+  --color-deep-ink-muted: #475569;
+  --color-deep-line: #dce3ed;
+
+  /* Text */
+  --color-ink: #101828;
+  --color-ink-muted: #475569;
+  --color-ink-subtle: #64748b;
+
+  /* Hairlines */
+  --color-line: #dce3ed;
+  --color-line-strong: #c6d2e1;
+  --color-line-hover: #b6c4d6;
+
+  /* White on a solid red fill: dark ink on red fails contrast. */
+  --color-on-error: #ffffff;
+
+  /* Accent */
+  --color-brand: #2563eb;
+  --color-brand-strong: #1d4ed8;
+  --color-brand-soft: #dbeafe;
+  --color-brand-soft-ink: #1e40af;
+  --color-brand-on-deep: #2563eb;
+  --color-on-accent: #ffffff;
+
+  /* Status */
+  --color-star: #d97706;
+  --color-success: #16a34a;
+  --color-success-soft: #dcfce7;
+  --color-success-ink: #15803d;
+  --color-warning: #d97706;
+  --color-warning-soft: #fef3c7;
+  --color-warning-ink: #b45309;
+  --color-error: #dc2626;
+  --color-error-soft: #fee2e2;
+  --color-error-ink: #b91c1c;
+
+  /* Band chrome */
+  --color-band-line: #dce3ed;
+  --color-band-line-md: #d3dde9;
+  --color-band-line-strong: #c6d2e1;
+  --color-band-line-xl: #b6c4d6;
+  --color-band-fill: rgb(16 24 40 / 0.035);
+  --color-band-fill-md: rgb(16 24 40 / 0.05);
+  --color-band-fill-strong: rgb(16 24 40 / 0.07);
+
+  /* Depth — light UI reads as paper, so shadows get softer and cooler. */
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.05), 0 12px 28px -22px rgb(16 24 40 / 0.18);
+  --shadow-card-hover: 0 2px 4px rgb(16 24 40 / 0.07), 0 20px 44px -24px rgb(16 24 40 / 0.22);
+  --shadow-panel: 0 2px 6px rgb(16 24 40 / 0.06), 0 30px 70px -45px rgb(16 24 40 / 0.25);
+  --shadow-accent: 0 10px 26px -14px rgb(37 99 235 / 0.45);
+
+  /* Neutral ramp, inverted for light surfaces. */
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+  --color-gray-950: #020617;
+
+  /* Cool accents */
+  --color-blue-100: #dbeafe;
+  --color-blue-300: #93c5fd;
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+  --color-blue-900: #1e3a8a;
+  --color-cyan-400: #38bdf8;
+  --color-cyan-500: #0ea5e9;
+  --color-cyan-600: #0284c7;
+
+  /* Warm accents */
+  --color-purple-100: #ede9fe;
+  --color-purple-400: #a78bfa;
+  --color-purple-500: #8b5cf6;
+  --color-purple-600: #7c3aed;
+  --color-purple-900: #4c1d95;
+  --color-pink-100: #fce7f3;
+  --color-pink-400: #f472b6;
+  --color-pink-500: #ec4899;
+  --color-pink-600: #db2777;
+  --color-pink-900: #831843;
+
+  /* Legacy `orange-*` is the accent remap, so it follows the blue accent. */
+  --color-orange-100: #dbeafe;
+  --color-orange-200: #bfdbfe;
+  --color-orange-300: #93c5fd;
+  --color-orange-400: #60a5fa;
+  --color-orange-500: #2563eb;
+  --color-orange-600: #1d4ed8;
+  --color-orange-700: #1e40af;
+  --color-orange-900: #1e3a8a;
+
+  /* Decorative fields — restrained blue light and charcoal hairlines. */
+  --ev-grid-line: rgb(16 24 40 / 0.055);
+  --ev-grid-sheen: rgb(37 99 235 / 0.045);
+  --ev-grid-sheen-2: rgb(37 99 235 / 0.02);
+  --ev-glow: rgb(37 99 235 / 0.07);
+  --ev-glow-2: rgb(37 99 235 / 0.025);
+  --ev-glow-deep: rgb(37 99 235 / 0.09);
+  --ev-glow-deep-2: rgb(29 78 216 / 0.05);
+  --ev-bubble: rgb(37 99 235 / 0.08);
+  --ev-halo: rgb(16 24 40 / 0.06);
+  --ev-halo-inner: rgb(16 24 40 / 0.045);
+  --ev-halo-accent: rgb(37 99 235 / 0.05);
+  --ev-halo-glow: rgb(37 99 235 / 0.1);
+  --ev-medallion-ring: rgb(37 99 235 / 0.2);
+  --ev-shimmer: rgb(16 24 40 / 0.05);
+  --ev-accent-halo: rgb(37 99 235 / 0.07);
+  --ev-accent-halo-2: rgb(37 99 235 / 0.08);
+  --ev-ring-accent: rgb(37 99 235 / 0.25);
+  --ev-glow-shadow: rgb(37 99 235 / 0.35);
+  --ev-scroll-thumb: #c3cfdd;
+  --ev-scroll-thumb-hover: #aebccd;
+  --ev-map-bg: #e8eff7;
+  --ev-attr-bg: rgb(255 255 255 / 0.82);
+  --ev-map-dot-ring: #ffffff;
+  --ev-map-dot-halo: rgb(16 24 40 / 0.1);
+  --ev-map-dot-halo-selected: rgb(37 99 235 / 0.22);
+  --ev-map-dot-shadow: 0 4px 10px rgb(16 24 40 / 0.25);
+  --ev-map-dot-shadow-strong: 0 6px 14px rgb(16 24 40 / 0.3);
+}
+
+/* ==========================================================================
+   Always-dark stage
+   --------------------------------------------------------------------------
+   Photography and the 3D render are imagery, not UI: a video still or a studio
+   render does not have a light variant. Marking the subtree re-declares the
+   dark palette locally, so every existing text/border/glass utility inside it
+   keeps working in both themes — and the lime accent stays legible there
+   instead of turning into unreadable blue on a dark photograph.
+   ========================================================================== */
+.ev-photo-scope {
+  color-scheme: dark;
+
+  --color-canvas: #050708;
+  --color-surface: #0b0d0f;
+  --color-surface-muted: #101316;
+  --color-surface-sunken: #080a0b;
+  --color-deep: #030405;
+  --color-deep-ink: #f5f7f8;
+  --color-deep-ink-muted: #a0a6ad;
+  --color-deep-line: rgb(255 255 255 / 0.14);
+
+  --color-ink: #f5f7f8;
+  --color-ink-muted: #a0a6ad;
+  --color-ink-subtle: #737b84;
+
+  --color-line: #202428;
+  --color-line-strong: #2c3237;
+  --color-line-hover: #4b5158;
+  --color-on-error: #1b0b0b;
+
+  --color-brand: #c6ff00;
+  --color-brand-strong: #d4ff3d;
+  --color-brand-soft: #1a2004;
+  --color-brand-soft-ink: #d1ff5c;
+  --color-brand-on-deep: #c6ff00;
+  --color-on-accent: #0a0d02;
+
+  --color-star: #ffd23f;
+  --color-success: #3ddc84;
+  --color-success-soft: #0a2015;
+  --color-success-ink: #6ef0a8;
+  --color-warning: #ffb020;
+  --color-warning-soft: #241a05;
+  --color-warning-ink: #ffcf6b;
+  --color-error: #ff5a5a;
+  --color-error-soft: #240f10;
+  --color-error-ink: #ff9d9d;
+
+  --color-band-line: rgb(255 255 255 / 0.1);
+  --color-band-line-md: rgb(255 255 255 / 0.12);
+  --color-band-line-strong: rgb(255 255 255 / 0.15);
+  --color-band-line-xl: rgb(255 255 255 / 0.2);
+  --color-band-fill: rgb(255 255 255 / 0.04);
+  --color-band-fill-md: rgb(255 255 255 / 0.06);
+  --color-band-fill-strong: rgb(255 255 255 / 0.1);
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 28px -22px rgb(0 0 0 / 0.7);
+  --shadow-card-hover: 0 2px 4px rgb(0 0 0 / 0.55), 0 20px 44px -24px rgb(0 0 0 / 0.85);
+  --shadow-accent: 0 10px 26px -14px rgb(198 255 0 / 0.5);
 }
 
 /* ==========================================================================
@@ -226,8 +493,8 @@
   }
 
   ::selection {
-    background: rgb(198 255 0 / 0.85);
-    color: #0a0d02;
+    background: var(--color-brand);
+    color: var(--color-on-accent);
   }
 
   :focus-visible {
@@ -246,13 +513,13 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #2f3337;
+    background: var(--ev-scroll-thumb);
     border-radius: 999px;
     border: 2px solid var(--color-canvas);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #444a4f;
+    background: var(--ev-scroll-thumb-hover);
   }
 
   input,
@@ -265,6 +532,18 @@
   input[type='date']::-webkit-calendar-picker-indicator {
     filter: invert(0.75);
     cursor: pointer;
+  }
+
+  /* Light mode: the native widgets and the calendar glyph follow the theme.
+     `color-scheme` also drives native scrollbars, autofill and form controls. */
+  :root.light input,
+  :root.light select,
+  :root.light textarea {
+    color-scheme: light;
+  }
+
+  :root.light input[type='date']::-webkit-calendar-picker-indicator {
+    filter: none;
   }
 
   select option {
@@ -363,8 +642,8 @@
     position: absolute;
     inset: -60%;
     background-image:
-      linear-gradient(to right, rgb(255 255 255 / 0.03) 1px, transparent 1px),
-      linear-gradient(to bottom, rgb(255 255 255 / 0.03) 1px, transparent 1px);
+      linear-gradient(to right, var(--ev-grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--ev-grid-line) 1px, transparent 1px);
     background-size: var(--ev-grid-cell) var(--ev-grid-cell);
     background-position: center top;
     animation: ev-grid-drift 72s linear infinite;
@@ -379,8 +658,8 @@
     inset: -20%;
     background: radial-gradient(
       32rem 24rem at 24% 16%,
-      rgb(198 255 0 / 0.05),
-      rgb(198 255 0 / 0.016) 46%,
+      var(--ev-grid-sheen),
+      var(--ev-grid-sheen-2) 46%,
       transparent 72%
     );
     animation: ev-grid-sheen 34s ease-in-out infinite alternate;
@@ -436,7 +715,7 @@
 
   .modern-card:hover {
     border-color: color-mix(in srgb, var(--color-brand) 26%, var(--color-line-strong));
-    box-shadow: var(--shadow-card-hover), 0 0 0 1px rgb(198 255 0 / 0.05);
+    box-shadow: var(--shadow-card-hover), 0 0 0 1px var(--ev-accent-halo);
   }
 
   /* -------- Primary action --------------------------------------------- */
@@ -444,7 +723,7 @@
   .ev-hover-glow:hover,
   .ev-hover-glow:focus-visible {
     border-color: color-mix(in srgb, var(--color-brand) 38%, var(--color-line));
-    box-shadow: var(--shadow-card-hover), 0 0 0 1px rgb(198 255 0 / 0.06);
+    box-shadow: var(--shadow-card-hover), 0 0 0 1px var(--ev-accent-halo-2);
   }
 
   .ev-cta {
@@ -515,7 +794,7 @@
     width: 30rem;
     height: 30rem;
     border-radius: 999px;
-    background: radial-gradient(circle at 30% 30%, rgb(198 255 0 / 0.1), transparent 68%);
+    background: radial-gradient(circle at 30% 30%, var(--ev-bubble), transparent 68%);
     filter: blur(30px);
   }
 
@@ -523,8 +802,8 @@
     position: absolute;
     aspect-ratio: 1;
     border-radius: 999px;
-    border: 1px solid rgb(255 255 255 / 0.05);
-    box-shadow: inset 0 0 0 1px rgb(198 255 0 / 0.03);
+    border: 1px solid var(--ev-halo);
+    box-shadow: inset 0 0 0 1px var(--ev-halo-accent);
     animation: ev-spin 60s linear infinite;
   }
 
@@ -533,7 +812,7 @@
     position: absolute;
     inset: 16%;
     border-radius: inherit;
-    border: 1px solid rgb(255 255 255 / 0.035);
+    border: 1px solid var(--ev-halo-inner);
   }
 
   .ev-halo-ring--slow {
@@ -545,7 +824,7 @@
     position: absolute;
     aspect-ratio: 1;
     border-radius: 999px;
-    background: radial-gradient(circle, rgb(198 255 0 / 0.12), transparent 65%);
+    background: radial-gradient(circle, var(--ev-halo-glow), transparent 65%);
     filter: blur(22px);
   }
 
@@ -570,8 +849,8 @@
   .ev-glow {
     background: radial-gradient(
       circle,
-      rgb(198 255 0 / 0.085),
-      rgb(198 255 0 / 0.03) 44%,
+      var(--ev-glow),
+      var(--ev-glow-2) 44%,
       transparent 72%
     );
   }
@@ -579,8 +858,8 @@
   .ev-glow--deep {
     background: radial-gradient(
       circle,
-      rgb(44 104 22 / 0.2),
-      rgb(20 52 14 / 0.09) 48%,
+      var(--ev-glow-deep),
+      var(--ev-glow-deep-2) 48%,
       transparent 74%
     );
   }
@@ -597,7 +876,7 @@
     height: 3rem;
     border-radius: 999px;
     background-color: var(--color-brand-soft);
-    border: 1px solid rgb(198 255 0 / 0.22);
+    border: 1px solid var(--ev-medallion-ring);
   }
 
   /* -------- Legacy animation helpers ----------------------------------- */
@@ -610,14 +889,14 @@
   }
 
   .loading-shimmer {
-    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.05), transparent);
+    background: linear-gradient(90deg, transparent, var(--ev-shimmer), transparent);
     background-size: 200% 100%;
     animation: ev-shimmer 1.6s infinite;
   }
 
   .glow-primary,
   .glow-secondary {
-    box-shadow: 0 0 0 1px rgb(198 255 0 / 0.22), 0 16px 36px -24px rgb(198 255 0 / 0.5);
+    box-shadow: 0 0 0 1px var(--ev-ring-accent), 0 16px 36px -24px var(--ev-glow-shadow);
   }
 
   .status-available {
@@ -641,7 +920,7 @@
 
   /* Leaflet: neutralise its default light chrome. */
   .leaflet-container {
-    background: #101214;
+    background: var(--ev-map-bg);
     font-family: var(--font-sans);
     z-index: 0;
   }
@@ -657,7 +936,7 @@
   }
 
   .leaflet-control-attribution {
-    background: rgb(10 11 12 / 0.75) !important;
+    background: var(--ev-attr-bg) !important;
     color: var(--color-ink-subtle) !important;
     font-size: 10px;
   }
@@ -691,8 +970,8 @@
     display: block;
     border-radius: 999px;
     background: var(--color-ink-subtle);
-    border: 2px solid #fff;
-    box-shadow: 0 0 0 4px rgb(255 255 255 / 0.12), 0 6px 14px rgb(0 0 0 / 0.45);
+    border: 2px solid var(--ev-map-dot-ring);
+    box-shadow: 0 0 0 4px var(--ev-map-dot-halo), var(--ev-map-dot-shadow);
     transition: transform 0.15s ease;
   }
 
@@ -714,7 +993,7 @@
 
   .chargeease-dot.is-selected {
     background: var(--color-brand);
-    box-shadow: 0 0 0 6px rgb(198 255 0 / 0.24), 0 8px 18px rgb(0 0 0 / 0.5);
+    box-shadow: 0 0 0 6px var(--ev-map-dot-halo-selected), var(--ev-map-dot-shadow-strong);
   }
 }
 

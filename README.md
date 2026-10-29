@@ -142,11 +142,25 @@ booking → charging → payment cycle. It is local demo data, not a real accoun
 | `CURRENCY` | `USD` | Currency code stored with prices |
 | `DISTANCE_UNIT` | `miles` | Distance unit hint |
 | `SEED_ON_START` | unset | Set to `false` to skip auto-seeding an empty database |
+| `SUPABASE_URL` | unset | Supabase project URL, used to verify Google sign-in tokens. Public value |
+| `SUPABASE_ANON_KEY` | unset | Supabase **publishable** key (`sb_publishable_…`). Public value; never a secret/service-role key |
+
+Leave both Supabase values unset to turn Google sign-in off: the
+`/auth/oauth/supabase` route then answers `OAUTH_NOT_CONFIGURED` and the sign-in
+pages show only the email form. If they are set to something unusable (only one
+of the two, a URL without `https://`, or a `sb_secret_`/`service_role` key) the
+route answers `OAUTH_MISCONFIGURED` and names the variable at fault, and no
+Supabase request is made — the app never falls back to a privileged credential.
+A deployment holding `SUPABASE_URL` but not `SUPABASE_ANON_KEY` is reported this
+way rather than as "not configured", so the missing value is named instead of
+hidden.
 
 ### frontend/.env
 
 Both variables are optional; see [frontend/.env.example](frontend/.env.example).
 `VITE_API_URL` defaults to the same-origin path `/api/v1`.
+`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` enable the "Continue with Google"
+button; without them the button is not rendered at all.
 
 **Never commit `.env`, the SQLite database, or any real credential.**
 
@@ -331,6 +345,22 @@ automatically on the first request.
 `PUBLIC_APP_URL`, `CORS_ORIGIN`, `SEED_ON_START=true`, and optionally
 `SEED_DEMO_USER=true` to publish the documented demo account. Never put real
 secrets in `VITE_*` variables — those are embedded in the browser bundle.
+
+**Google sign-in (optional).** Four more names, holding two public values — the
+Supabase project URL and the publishable key from *Project Settings → API Keys*.
+The `VITE_` pair is read when the frontend is built and inlined into the bundle;
+the pair without the prefix is read by the API function at runtime. Use the
+publishable key in both pairs: a secret (`sb_secret_…`) or `service_role` key is
+detected and refused on both sides, because a `VITE_` value is public the moment
+it is built. Only the Google client secret stays out of the app entirely: it
+lives in the Supabase dashboard under *Authentication → Providers → Google*, and
+the redirect URLs to allowlist are `<site>/auth/callback` (plus
+`http://localhost:5173/auth/callback` for local development).
+
+| Build-time (browser) | Runtime (API function) |
+| --- | --- |
+| `VITE_SUPABASE_URL` | `SUPABASE_URL` |
+| `VITE_SUPABASE_ANON_KEY` | `SUPABASE_ANON_KEY` |
 
 **Project settings.** Root Directory: repository root. Framework: Other. Build
 command, install command, output directory and SPA rewrites come from

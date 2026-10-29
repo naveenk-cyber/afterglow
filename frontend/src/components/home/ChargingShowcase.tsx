@@ -108,7 +108,7 @@ const ChargingShowcase: React.FC = () => {
       />
 
       <div className="mt-6 grid gap-4 lg:grid-cols-[1.45fr_1fr]">
-        <div className="relative h-[320px] overflow-hidden rounded-panel border border-line bg-deep sm:h-[440px]">
+        <div className="ev-photo-scope relative h-[320px] overflow-hidden rounded-panel border border-line bg-deep sm:h-[440px]">
           <div className="absolute left-4 top-4 z-10 flex flex-wrap gap-2">
             <Badge tone="deep">Illustrative 3D</Badge>
             {prefersReducedMotion && <Badge tone="deep">Reduced motion</Badge>}

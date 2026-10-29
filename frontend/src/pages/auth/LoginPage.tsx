@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -8,6 +8,8 @@ import { useAuth } from '../../hooks/useAuth';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Wordmark from '../../components/ui/Wordmark';
+import GoogleSignInButton from '../../components/auth/GoogleSignInButton';
+import { safeInternalPath } from '../../services/supabase';
 import type { LoginForm } from '../../types';
 
 const loginSchema = z.object({
@@ -21,8 +23,16 @@ const DEMO_PASSWORD = 'Demo1234!';
 
 const LoginPage: React.FC = () => {
   const [loginError, setLoginError] = useState('');
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, googleSignInEnabled } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // ProtectedRoute sends the intended destination along in `state`, so a Google
+  // sign-in can land there too instead of always starting at the dashboard.
+  const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
+  const returnTo = safeInternalPath(
+    from?.pathname ? `${from.pathname}${from.search ?? ''}` : null,
+  );
 
   const {
     register,
@@ -60,7 +70,7 @@ const LoginPage: React.FC = () => {
     <div className="mx-auto max-w-[1280px] px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
       <div className="grid overflow-hidden rounded-[28px] border border-line bg-surface shadow-card lg:grid-cols-[0.92fr_1.08fr]">
         {/* Visual panel */}
-        <div className="relative hidden min-h-[40rem] overflow-hidden bg-deep lg:block">
+        <div className="ev-photo-scope relative hidden min-h-[40rem] overflow-hidden bg-deep lg:block">
           <img
             src="/assets/station-6.jpg"
             alt="Electric sedan charging at dusk"
@@ -112,6 +122,19 @@ const LoginPage: React.FC = () => {
             <p className="mt-2 text-sm text-ink-muted">
               Sign in to see your bookings, saved stations and wallet activity.
             </p>
+
+            {googleSignInEnabled && (
+              <div className="mt-8 space-y-5">
+                <GoogleSignInButton returnTo={returnTo} />
+                <div className="flex items-center gap-3">
+                  <span className="h-px flex-1 bg-line" aria-hidden="true" />
+                  <span className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-ink-subtle">
+                    or use your email
+                  </span>
+                  <span className="h-px flex-1 bg-line" aria-hidden="true" />
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit(submit)} className="mt-8 space-y-5" noValidate>
               {loginError && (

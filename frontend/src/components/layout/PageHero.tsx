@@ -36,7 +36,7 @@ const PageHero: React.FC<PageHeroProps> = ({
     >
       {eyebrow && (
         <p
-          className={`inline-flex items-center gap-2 rounded-full border border-deep-line bg-white/[0.04] px-3 py-1 text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-brand-on-deep ${
+          className={`inline-flex items-center gap-2 rounded-full border border-deep-line bg-band-fill px-3 py-1 text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-brand-on-deep ${
             align === 'center' ? 'mx-auto' : ''
           }`}
         >

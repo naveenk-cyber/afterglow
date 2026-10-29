@@ -5,8 +5,19 @@ const rateLimit = require('express-rate-limit');
 const config = require('../config');
 const { ApiError, asyncHandler } = require('../errors');
 const { requireAuth, hashPassword, verifyPassword, createToken, createOpaqueToken, sha256 } = require('../security');
+const { fetchGoogleIdentity } = require('../supabase');
 const v = require('../validate');
-const { nowIso, newId, findUserByEmail, findUserById, publicUser, ensureWallet } = require('../repo');
+const {
+  nowIso,
+  newId,
+  findUserByEmail,
+  findUserById,
+  findUserByGoogleSub,
+  attachGoogleIdentity,
+  createOAuthUser,
+  publicUser,
+  ensureWallet,
+} = require('../repo');
 
 const PASSWORD_MIN = 8;
 const RESET_TTL_MINUTES = 30;
@@ -153,6 +164,64 @@ function createAuthRouter(db) {
       }
       const session = await createSession(db, user.id);
       setSessionCookie(res, session.token, { remember: body.rememberMe !== false });
+      res.json({
+        success: true,
+        data: {
+          user: await publicUser(db, user),
+          token: session.token,
+          expiresAt: session.expiresAt,
+        },
+      });
+    }),
+  );
+
+  /**
+   * Google sign-in, brokered by Supabase.
+   *
+   * The browser finishes the OAuth dance with Supabase and posts the resulting
+   * access token here. Supabase itself verifies that token (see ../supabase),
+   * the matching Afterglow account is found or created, and the usual HttpOnly
+   * session cookie is issued — so protected routes, the dashboard and every
+   * other API contract behave exactly as they do for password sign-in, and no
+   * Google secret is ever needed in the browser or in this service.
+   */
+  router.post(
+    '/oauth/supabase',
+    credentialLimiter,
+    asyncHandler(async (req, res) => {
+      const body = v.requireObjectBody(req.body);
+      const accessToken = v.str(body.accessToken, 'Google access token', { min: 20, max: 4096 });
+
+      const identity = await fetchGoogleIdentity(accessToken);
+
+      // Prefer the stored Google subject: it survives an email change on
+      // either side. Fall back to the email so an existing Afterglow account
+      // is linked instead of a duplicate being created.
+      let user = await findUserByGoogleSub(db, identity.sub);
+      if (!user) {
+        const existing = await findUserByEmail(db, identity.email);
+        if (existing) {
+          if (existing.google_sub && existing.google_sub !== identity.sub) {
+            throw ApiError.conflict(
+              'This Afterglow account is already linked to a different Google account.',
+            );
+          }
+          user = await attachGoogleIdentity(db, existing.id, {
+            sub: identity.sub,
+            avatar: identity.avatar,
+          });
+        } else {
+          user = await createOAuthUser(db, {
+            email: identity.email,
+            name: identity.name || identity.email.split('@')[0],
+            avatar: identity.avatar,
+            googleSub: identity.sub,
+          });
+        }
+      }
+
+      const session = await createSession(db, user.id);
+      setSessionCookie(res, session.token, { remember: true });
       res.json({
         success: true,
         data: {

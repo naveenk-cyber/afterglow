@@ -33,7 +33,7 @@ const Hero: React.FC = () => {
       <div className="relative mx-auto max-w-[1280px] px-4 pb-10 pt-10 sm:px-6 sm:pt-12 lg:px-8 lg:pb-12 lg:pt-14">
         <div className="grid items-center gap-8 lg:grid-cols-[1.06fr_0.94fr] lg:gap-12">
           <div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-deep-line bg-white/[0.04] px-3 py-1 text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-brand-on-deep">
+            <p className="inline-flex items-center gap-2 rounded-full border border-deep-line bg-band-fill px-3 py-1 text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-brand-on-deep">
               <Zap className="h-3 w-3" aria-hidden="true" />
               EV charging, without the guesswork
             </p>
@@ -63,7 +63,7 @@ const Hero: React.FC = () => {
               </ButtonLink>
             </div>
 
-            <dl className="mt-7 grid max-w-lg grid-cols-3 gap-4 border-t border-white/10 pt-5">
+            <dl className="mt-7 grid max-w-lg grid-cols-3 gap-4 border-t border-band-line pt-5">
               {facts.map((fact) => (
                 <div key={fact.label}>
                   <dd className="ev-figure text-[1.7rem] text-deep-ink">{fact.value}</dd>
@@ -83,7 +83,7 @@ const Hero: React.FC = () => {
           </div>
 
           <div className="relative">
-            <div className="relative overflow-hidden rounded-[18px] border border-white/10 bg-surface shadow-[0_30px_70px_-40px_rgb(0_0_0/0.95)]">
+            <div className="relative overflow-hidden rounded-[18px] border border-band-line bg-surface shadow-[0_30px_70px_-40px_rgb(0_0_0/0.95)]">
               {/*
                 The LCP element. It points straight at the WebP (which
                 index.html preloads) instead of going through <picture>, so the
@@ -113,14 +113,14 @@ const Hero: React.FC = () => {
                 aria-hidden="true"
               />
 
-              <div className="absolute left-3 top-3">
+              <div className="ev-photo-scope absolute left-3 top-3">
                 <Badge tone="deep" dot>
                   From the station catalogue
                 </Badge>
               </div>
 
               {featured && (
-                <div className="absolute inset-x-3 bottom-3 rounded-[12px] border border-white/12 bg-[#0b0c0e]/85 p-3.5 backdrop-blur-md">
+                <div className="ev-photo-scope absolute inset-x-3 bottom-3 rounded-[12px] border border-white/12 bg-[#0b0c0e]/85 p-3.5 backdrop-blur-md">
                   <p className="ev-label text-brand-on-deep">Featured station</p>
                   <p className="mt-1 truncate text-[0.92rem] font-semibold text-deep-ink">
                     {featured.name}

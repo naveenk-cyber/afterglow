@@ -178,6 +178,14 @@ const MIGRATIONS = [
       CREATE INDEX idx_wallet_tx_user ON wallet_transactions(user_id, created_at);
     `,
   },
+  {
+    version: 2,
+    name: 'google_identity',
+    sql: `
+      ALTER TABLE users ADD COLUMN google_sub TEXT;
+      CREATE UNIQUE INDEX idx_users_google_sub ON users(google_sub) WHERE google_sub IS NOT NULL;
+    `,
+  },
 ];
 
 /** Routes each query to the active transaction, otherwise to the adapter. */

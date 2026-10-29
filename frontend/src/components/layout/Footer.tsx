@@ -73,7 +73,7 @@ const Footer: React.FC = () => {
     <footer className="mt-16 border-t border-line bg-deep">
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
         {/* Closing call to action */}
-        <div className="grid gap-5 border-b border-white/10 py-10 md:grid-cols-[1fr_auto] md:items-center">
+        <div className="grid gap-5 border-b border-band-line py-10 md:grid-cols-[1fr_auto] md:items-center">
           <div>
             <p className="ev-label">Ready when you are</p>
             <h2 className="ev-title mt-2 max-w-xl text-deep-ink">
@@ -115,7 +115,7 @@ const Footer: React.FC = () => {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={`Afterglow on ${social.name}`}
-                  className="grid h-9 w-9 place-items-center rounded-full border border-white/12 text-deep-ink-muted transition-colors hover:border-brand/60 hover:text-deep-ink"
+                  className="grid h-9 w-9 place-items-center rounded-full border border-band-line-md text-deep-ink-muted transition-colors hover:border-brand/60 hover:text-deep-ink"
                 >
                   <social.icon className="h-4 w-4" aria-hidden="true" />
                 </a>
@@ -176,7 +176,7 @@ const Footer: React.FC = () => {
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     placeholder="you@example.com"
-                    className="h-10 w-full rounded-control border border-white/15 bg-white/[0.04] pl-9 pr-4 text-sm text-deep-ink placeholder:text-deep-ink-muted/60 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25"
+                    className="h-10 w-full rounded-control border border-band-line-strong bg-band-fill pl-9 pr-4 text-sm text-deep-ink placeholder:text-deep-ink-muted/60 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25"
                   />
                 </div>
                 <Button type="submit" variant="primary" size="md" className="sm:px-5">
@@ -201,7 +201,7 @@ const Footer: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-white/10 py-6 text-xs text-deep-ink-muted sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-t border-band-line py-6 text-xs text-deep-ink-muted sm:flex-row sm:items-center sm:justify-between">
           <p>© {year} Afterglow. All rights reserved.</p>
           <p className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden="true" />

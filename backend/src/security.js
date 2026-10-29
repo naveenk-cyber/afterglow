@@ -48,6 +48,16 @@ function verifyPassword(password, stored) {
   }
 }
 
+/**
+ * Stored in `password_hash` for accounts created through Google.
+ *
+ * It is intentionally not a scrypt hash, so `verifyPassword` rejects every
+ * password for those accounts rather than accepting one — a Google-only
+ * account cannot be entered with the password form, and signing in with Google
+ * again is the only way back in.
+ */
+const OAUTH_ONLY_PASSWORD_HASH = 'oauth$google';
+
 const b64url = (input) => Buffer.from(input).toString('base64url');
 const fromB64url = (input) => Buffer.from(input, 'base64url');
 
@@ -175,6 +185,7 @@ function sha256(value) {
 module.exports = {
   hashPassword,
   verifyPassword,
+  OAUTH_ONLY_PASSWORD_HASH,
   createToken,
   verifyToken,
   requireAuth,

@@ -24,6 +24,7 @@ const ROUTE_TITLES: { path: string; title: string }[] = [
   { path: '/signup', title: 'Create your account' },
   { path: '/forgot-password', title: 'Reset your password' },
   { path: '/reset-password', title: 'Choose a new password' },
+  { path: '/auth/callback', title: 'Signing in with Google' },
 ];
 
 /** Split a path pattern into literal segments and `:param` placeholders. */

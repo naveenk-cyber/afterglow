@@ -181,3 +181,34 @@ describe('query serialisation', () => {
     expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({ stationId: 'st-1' });
   });
 });
+
+describe('google sign-in exchange', () => {
+  it('posts the Supabase access token and keeps the session the API returns', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(envelope({ user: { id: 'u1', name: 'Ada' }, token: 'api-token', expiresAt: 'z' })),
+    );
+    await authService.loginWithSupabase('supabase-access-token');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain('/auth/oauth/supabase');
+    expect((init as RequestInit).method).toBe('POST');
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      accessToken: 'supabase-access-token',
+    });
+    expect(tokenStore.get()).toBe('api-token');
+  });
+
+  it('surfaces a rejected token as an ApiError without storing a session', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(errorEnvelope('UNAUTHORIZED', 'That Google sign-in could not be verified.'), 401),
+    );
+    const error = (await authService
+      .loginWithSupabase('bad-token')
+      .catch((e) => e)) as ApiError;
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.status).toBe(401);
+    expect(error.message).toBe('That Google sign-in could not be verified.');
+    expect(tokenStore.get()).toBeNull();
+  });
+});

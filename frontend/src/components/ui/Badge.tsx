@@ -19,7 +19,7 @@ const TONES: Record<BadgeTone, string> = {
   success: 'bg-success-soft text-success-ink border-success/30',
   warning: 'bg-warning-soft text-warning-ink border-warning/30',
   danger: 'bg-error-soft text-error-ink border-error/30',
-  deep: 'bg-white/10 text-deep-ink border-deep-line',
+  deep: 'bg-band-fill-strong text-deep-ink border-deep-line',
 };
 
 interface BadgeProps {
